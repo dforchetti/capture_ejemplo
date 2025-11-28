@@ -35,6 +35,7 @@ int frec_reloj_filtro = 150000;      // frecuencia de reloj del filtro en Hz
 int periodo = 2 / frec_reloj_filtro; // periodo en us
 
 #define DECIMACION 100000 // frec_reloj_filtro / CAPTURE_PRESCALER
+#define ACTUALIZA 1000    // frec_reloj_filtro / CAPTURE_PRESCALER
 
 data CANAL[N_CANALES];
 
@@ -74,6 +75,8 @@ struct CaptureEvent
   gpio_num_t gpio_num;
 };
 
+struct CaptureEvent dato;
+
 void task1(void *parameter)
 {
   static int64_t t_anterior, t_actual;
@@ -106,9 +109,9 @@ extern "C" void app_main(void)
 
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
-  xQueue = xQueueCreate(
-      200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
-  struct CaptureEvent dato;
+  xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
+
+  // struct CaptureEvent dato;
 
   // Crear primera tarea (LED)
   xTaskCreate(task1,         // Función de la tarea
@@ -147,9 +150,6 @@ extern "C" void app_main(void)
   while (1) //{vTaskDelay(10);}
   {
     /*
-        // debug_state = !debug_state;
-        // gpio_set_level(DEBUG_PIN, 1);
-        // gpio_set_level(DEBUG_PIN, debug_state );
 
         //    if (xQueueReceive(xQueue, &dato, portMAX_DELAY)) {
         //    if (xQueueReceive(xQueue, &dato, 0)) {
@@ -158,18 +158,16 @@ extern "C" void app_main(void)
             ESP_LOGE(TAG, "fallo en la cola del ISR");
             f_envioExitoso = true;
             }
+*/
+    if (xQueueReceiveFromISR(xQueue, &dato, 0))
+    {
 
-            if (xQueueReceiveFromISR(xQueue, &dato, 0))
-            {
+      dato.mean[0] = (float)(dato.M2[0] / dato.n_muestras[0] / 80.0); // 80 MHz de reloj
+      dato.mean[1] = (float)(dato.M2[1] / dato.n_muestras[1] / 80.0); // 80 MHz de reloj
 
-            dato.mean[0] = (float)(dato.M2[0] / dato.n_muestras[0] / 80.0); // 80 MHz de reloj
-            dato.mean[1] = (float)(dato.M2[1] / dato.n_muestras[1] / 80.0); // 80 MHz de reloj
-
-            ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num,dato.mean[0],100.0*(dato.max[0]/80.0-dato.mean[0])/dato.mean[0],100.0*(dato.min[0]/80.0-dato.mean[0])/dato.mean[0],dato.n_muestras[0],dato.mean[1],100.0*(dato.max[1]/80.0-dato.mean[1])/dato.mean[1],100.0*(dato.min[1]/80.0-dato.mean[1])/dato.mean[1],dato.n_muestras[1]);
-            //   ESP_LOGI(TAG, "<%i>, GPIO:%i M2U: = %d NU %d, M2D: = %d ND %d", dato.cont, dato.gpio_num,dato.M2[0],dato.n_muestras[0],dato.M2[0],dato.n_muestras[1]);
-            }
-            */
-    // blink_led();
+      ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num, dato.mean[0], 100.0 * (dato.max[0] / 80.0 - dato.mean[0]) / dato.mean[0], 100.0 * (dato.min[0] / 80.0 - dato.mean[0]) / dato.mean[0], dato.n_muestras[0], dato.mean[1], 100.0 * (dato.max[1] / 80.0 - dato.mean[1]) / dato.mean[1], 100.0 * (dato.min[1] / 80.0 - dato.mean[1]) / dato.mean[1], dato.n_muestras[1]);
+      //   ESP_LOGI(TAG, "<%i>, GPIO:%i M2U: = %d NU %d, M2D: = %d ND %d", dato.cont, dato.gpio_num,dato.M2[0],dato.n_muestras[0],dato.M2[0],dato.n_muestras[1]);
+    }
     vTaskDelay(500);
   }
   //------------------------------------------------------------------------------------------
@@ -254,12 +252,7 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
       dato->flag_evento[edge] = true;
     }
   }
-  else
-  {
-    dato->contador_disparos_max[edge] = 0;
-  }
-
-  if (delta <= (dato->ui_mean[edge] - dato->delta_max[edge])) // si DELTA < (MEDIA - UMBRAL) -> trigger MINIMO++
+  else if (delta <= (dato->ui_mean[edge] - dato->delta_max[edge])) // si DELTA < (MEDIA - UMBRAL) -> trigger MINIMO++
   {
 
     dato->contador_disparos_min[edge]++;
@@ -272,13 +265,21 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
   else // si no se supera ningun
   {
     dato->contador_disparos_min[edge] = 0;
+    dato->contador_disparos_max[edge] = 0;
   }
 
-  dato->M2[edge] = dato->M2[edge] + delta;
+  dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + delta;
+
+  if (dato->count[edge] == ACTUALIZA)
+  {
+    dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->count[edge];
+    dato->ui_mean_sum[edge] = 0;
+    dato->count[edge] = 0;
+  }
 
   cont++;
 
-  if (cont == DECIMACION)
+  if (cont == DECIMACION) // cada cierto numero de muestras envio un resumen
   {
     //  if (cont == 100) {
 
