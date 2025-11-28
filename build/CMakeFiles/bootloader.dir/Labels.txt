@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/CMakeFiles/bootloader
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/CMakeFiles/bootloader.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/CMakeFiles/bootloader-complete.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule
