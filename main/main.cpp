@@ -15,7 +15,7 @@
 #include "portmacro.h"
 #include "soc/gpio_num.h"
 
-const static char *TAG = "capture";
+const char *TAG = "capture";
 
 // variable globales
 //------------------------------------------------------------------------------------------
@@ -42,6 +42,8 @@ data CANAL[N_CANALES];
 bool led_state = false;
 static bool debug_state = false;
 volatile bool f_envioExitoso = true;
+volatile bool f_calibra_media = false;
+bool f_arraque = false;
 //------------------------------------------------------------------------------------------
 
 // funciones
@@ -66,12 +68,11 @@ struct CaptureEvent
 {
   bool edge;
   int cont;
-  int M2[2];
   int n_muestras[2];
-  int max[2];
-  int min[2];
+  uint32_t max[2];
+  uint32_t min[2];
   float mean[2];
-
+  uint32_t ui_mean_sum[2];
   gpio_num_t gpio_num;
 };
 
@@ -109,11 +110,18 @@ extern "C" void app_main(void)
 
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
+  uart_init_config();
+
   xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
 
-  // struct CaptureEvent dato;
+  // Crear tarea para el monitor serial
+  xTaskCreate(serial_monitor_task,
+              "serial_monitor",
+              10000,
+              NULL,
+              10,
+              NULL);
 
-  // Crear primera tarea (LED)
   xTaskCreate(task1,         // Función de la tarea
               "Task simula", // Nombre de la tarea
               10000,         // Tamaño del stack
@@ -126,7 +134,7 @@ extern "C" void app_main(void)
 
   // config GPIO
   //------------------------------------------------------------------------------------------
-  // config_GPIO();
+  config_GPIO();
 
   // capture channels
   //------------------------------------------------------------------------------------------
@@ -140,12 +148,12 @@ extern "C" void app_main(void)
   //------------------------------------------------------------------------------------------
   config_mcpwm();
 
-  // config_GPIO();
-
   // Bucle principal
   //------------------------------------------------------------------------------------------
 
   ESP_LOGI(TAG, "Arrancanding CORE (%d)", xPortGetCoreID());
+
+  f_arraque = true;
 
   while (1) //{vTaskDelay(10);}
   {
@@ -162,11 +170,11 @@ extern "C" void app_main(void)
     if (xQueueReceiveFromISR(xQueue, &dato, 0))
     {
 
-      dato.mean[0] = (float)(dato.M2[0] / dato.n_muestras[0] / 80.0); // 80 MHz de reloj
-      dato.mean[1] = (float)(dato.M2[1] / dato.n_muestras[1] / 80.0); // 80 MHz de reloj
+      dato.mean[0] = (float)(dato.ui_mean_sum[0] / dato.n_muestras[0] / 80.0); // 80 MHz de reloj
+      dato.mean[1] = (float)(dato.ui_mean_sum[1] / dato.n_muestras[1] / 80.0); // 80 MHz de reloj
 
-      ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num, dato.mean[0], 100.0 * (dato.max[0] / 80.0 - dato.mean[0]) / dato.mean[0], 100.0 * (dato.min[0] / 80.0 - dato.mean[0]) / dato.mean[0], dato.n_muestras[0], dato.mean[1], 100.0 * (dato.max[1] / 80.0 - dato.mean[1]) / dato.mean[1], 100.0 * (dato.min[1] / 80.0 - dato.mean[1]) / dato.mean[1], dato.n_muestras[1]);
-      //   ESP_LOGI(TAG, "<%i>, GPIO:%i M2U: = %d NU %d, M2D: = %d ND %d", dato.cont, dato.gpio_num,dato.M2[0],dato.n_muestras[0],dato.M2[0],dato.n_muestras[1]);
+      // ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num, dato.mean[0], 100.0 * (dato.max[0] / 80.0 - dato.mean[0]) / dato.mean[0], 100.0 * (dato.min[0] / 80.0 - dato.mean[0]) / dato.mean[0], dato.n_muestras[0], dato.mean[1], 100.0 * (dato.max[1] / 80.0 - dato.mean[1]) / dato.mean[1], 100.0 * (dato.min[1] / 80.0 - dato.mean[1]) / dato.mean[1], dato.n_muestras[1]);
+      ESP_LOGI(TAG, "<%i>, GPIO:%i M:%2.6f NU %d, M:%2.6f ND %d", dato.cont, dato.gpio_num, dato.mean[0], dato.n_muestras[0], dato.mean[0], dato.n_muestras[1]);
     }
     vTaskDelay(500);
   }
@@ -268,13 +276,10 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
     dato->contador_disparos_max[edge] = 0;
   }
 
-  dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + delta;
-
-  if (dato->count[edge] == ACTUALIZA)
+  if (f_calibra_media == true)
   {
-    dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->count[edge];
-    dato->ui_mean_sum[edge] = 0;
-    dato->count[edge] = 0;
+
+    dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + delta;
   }
 
   cont++;
@@ -287,17 +292,15 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
     event.edge = edata->cap_edge;
     event.gpio_num = (gpio_num_t)dato->code;
 
-    event.M2[0] = dato->M2[0];
-    event.M2[1] = dato->M2[1];
     event.n_muestras[0] = dato->count[0];
     event.n_muestras[1] = dato->count[1];
+    event.ui_mean_sum[0] = dato->ui_mean_sum[0];
+    event.ui_mean_sum[1] = dato->ui_mean_sum[1];
     event.max[0] = dato->max[0];
     event.max[1] = dato->max[1];
     event.min[0] = dato->min[0];
     event.min[1] = dato->min[1];
 
-    dato->M2[0] = 0;
-    dato->M2[1] = 0;
     dato->count[0] = 0;
     dato->count[1] = 0;
     dato->max[0] = 0;
@@ -309,6 +312,13 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     f_envioExitoso = xQueueSendFromISR(xQueue, &event, &xHigherPriorityTaskWoken); // dato faltante == true si no pudo enviar el dato en la cola
+  }
+
+  if (dato->count[edge] == ACTUALIZA)
+  {
+    dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->count[edge];
+    dato->ui_mean_sum[edge] = 0;
+    dato->count[edge] = 0;
   }
 
   gpio_set_level((gpio_num_t)dato->dpin, 0);
@@ -378,12 +388,14 @@ void config_GPIO(void)
 }
 //------------------------------------------------------------------------------------------
 
+mcpwm_cap_timer_handle_t cap_timer[2] = {NULL, NULL};
+
 //------------------------------------------------------------------------------------------
 void config_capture(void)
 {
   ESP_LOGI(TAG, "Install capture timers");
 
-  mcpwm_cap_timer_handle_t cap_timer[2] = {NULL, NULL};
+  // mcpwm_cap_timer_handle_t cap_timer[2] = {NULL, NULL};
 
   mcpwm_capture_timer_config_t cap_conf[2];
 
