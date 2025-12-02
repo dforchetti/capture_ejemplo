@@ -14,6 +14,8 @@
 #include "include/mi_libreria.h"
 #include "portmacro.h"
 #include "soc/gpio_num.h"
+#include "driver/uart.h"
+#include "include/uart.h"
 
 const char *TAG = "capture";
 
@@ -53,6 +55,9 @@ void config_GPIO(void);
 void config_capture(void);
 void config_mcpwm(void);
 void config_timer(void);
+void start_capture_timer(void);
+void stop_capture_timer(void);
+
 static void timer_callback(void *arg);
 static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
                              const mcpwm_capture_event_data_t *edata,
@@ -110,17 +115,13 @@ extern "C" void app_main(void)
 
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
-  uart_init_config();
-
   xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
 
-  // Crear tarea para el monitor serial
-  xTaskCreate(serial_monitor_task,
-              "serial_monitor",
-              10000,
-              NULL,
-              10,
-              NULL);
+  esp_log_level_set(TAG, ESP_LOG_INFO);
+
+  configura_uart();
+  // Create a task to handler UART event from ISR
+  xTaskCreate(uart_event_task, "uart_event_task", 10000, NULL, 12, NULL);
 
   xTaskCreate(task1,         // Función de la tarea
               "Task simula", // Nombre de la tarea
@@ -220,11 +221,16 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 
   dato->dir_flanco_actual = edge;
 
-  // para saltear los controles posteriores
+  // para saltear las cuentas si es la primera vez
   if (dato->count[edge] == 0)
   {
-
-    dato->dir_flanco_anterior = !edge;
+    if (dato->count[!edge] == 0)
+    {
+      dato->t_anterior = value;
+      gpio_set_level((gpio_num_t)dato->dpin, 0);
+      // gpio_set_level(GPIO_NUM_10, 0);
+      return true;
+    }
   }
 
   // contabiliza si hubo algun error en el patron de conmutaciones
@@ -476,10 +482,44 @@ void config_capture(void)
   ESP_ERROR_CHECK(mcpwm_capture_timer_enable(cap_timer[1]));
 
   ESP_LOGI(TAG, "start capture timer");
+  start_capture_timer();
+  // ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer[0]));
+  // ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer[1]));
+
+  ESP_LOGI(TAG, "start timer");
+}
+//------------------------------------------------------------------------------------------
+
+// start capture timer
+//------------------------------------------------------------------------------------------
+void start_capture_timer(void)
+{
   ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer[0]));
   ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer[1]));
 
-  ESP_LOGI(TAG, "start timer");
+  for (int i = 0; i < 4; i++)
+  {
+    CANAL[i].count[0] = 0;
+    CANAL[i].count[1] = 0;
+    CANAL[i].dir_flanco_anterior = 0;
+    CANAL[i].dir_flanco_actual = 0;
+    CANAL[i].cont_errores = 0;
+    CANAL[i].f_error = false;
+    CANAL[i].t_anterior = 0;
+    CANAL[i].max[0] = 0;
+    CANAL[i].max[1] = 0;
+    CANAL[i].min[0] = 0x7FFFFFFF;
+    CANAL[i].min[1] = 0x7FFFFFFF;
+  }
+}
+//------------------------------------------------------------------------------------------
+
+// stop capture timer
+//------------------------------------------------------------------------------------------
+void stop_capture_timer(void)
+{
+  ESP_ERROR_CHECK(mcpwm_capture_timer_stop(cap_timer[0]));
+  ESP_ERROR_CHECK(mcpwm_capture_timer_stop(cap_timer[1]));
 }
 //------------------------------------------------------------------------------------------
 

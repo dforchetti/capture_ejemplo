@@ -14,12 +14,9 @@
 using namespace std;
 // Configuración del UART
 #define UART_NUM UART_NUM_0
-#define BUF_SIZE 1024
-#define PATTERN_CHR_NUM 3
 
 // Palabra específica a buscar
 extern const char *TAG;
-static const char *TARGET_WORD = "activar"; // Cambia esto por tu palabra
 extern mcpwm_cap_timer_handle_t cap_timer[];
 extern bool f_arraque;
 
@@ -117,121 +114,6 @@ void data::reset(void)
     this->min[i] = 0;
     this->n_max_disparos[i] = 0;
     this->flag_evento[i] = false;
-  }
-}
-
-// Función para inicializar UART
-static void uart_init_config(void)
-{
-  uart_config_t uart_config = {
-      .baud_rate = 115200,
-      .data_bits = UART_DATA_8_BITS,
-      .parity = UART_PARITY_DISABLE,
-      .stop_bits = UART_STOP_BITS_1,
-      .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-      .source_clk = UART_SCLK_DEFAULT,
-  };
-
-  // Configurar parámetros del UART
-  ESP_ERROR_CHECK(uart_param_config(UART_NUM, &uart_config));
-
-  // Configurar pines (UART0 por defecto usa GPIO1 TX, GPIO3 RX)
-  ESP_ERROR_CHECK(uart_set_pin(UART_NUM, GPIO_NUM_1, GPIO_NUM_3,
-                               UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-
-  // Instalar driver UART
-  ESP_ERROR_CHECK(uart_driver_install(UART_NUM, BUF_SIZE * 2, 0, 0, NULL, 0));
-}
-
-// Función para buscar palabra en el texto
-static bool contains_word(const char *text, const char *word)
-{
-  if (text == NULL || word == NULL)
-    return false;
-
-  char *found = strstr(text, word);
-  return (found != NULL);
-}
-
-// Función para limpiar buffer
-static void clean_buffer(char *buffer, int length)
-{
-  for (int i = 0; i < length; i++)
-  {
-    buffer[i] = 0;
-  }
-}
-
-// Tarea principal para leer y procesar datos seriales
-static void serial_monitor_task(void *arg)
-{
-  uint8_t data[BUF_SIZE];
-  char received_text[BUF_SIZE];
-  int text_index = 0;
-
-  ESP_LOGI(TAG, "Serial monitor iniciado");
-  ESP_LOGI(TAG, "Esperando datos... Palabra objetivo: '%s'", TARGET_WORD);
-  // printf("Envía texto por serial. Buscando la palabra: %s\n", TARGET_WORD);
-
-  while (f_arraque == NULL)
-  {
-    vTaskDelay(100 / portTICK_PERIOD_MS);
-  }
-
-  while (1)
-  {
-    // Leer datos del UART
-    int len = uart_read_bytes(UART_NUM, data, BUF_SIZE - 1, 20 / portTICK_PERIOD_MS);
-
-    if (len > 0)
-    {
-      ESP_LOGI(TAG, "ACA");
-      data[len] = '\0'; // Terminar string
-
-      // Procesar cada carácter recibido
-      for (int i = 0; i < len; i++)
-      {
-        char c = data[i];
-
-        // Si es nueva línea o retorno de carro, procesar el texto completo
-        if (c == '\n' || c == '\r')
-        {
-          if (text_index > 0)
-          {
-            received_text[text_index] = '\0';
-
-            // Mostrar texto recibido
-            ESP_LOGI(TAG, "Texto recibido: %s", received_text);
-
-            // Buscar palabra específica
-            if (contains_word(received_text, TARGET_WORD))
-            {
-              ESP_LOGI(TAG, "¡Palabra '%s' encontrada!", TARGET_WORD);
-              printf(">>> ¡COINCIDENCIA! La palabra '%s' fue detectada.\n", TARGET_WORD);
-
-              // Aquí puedes agregar acciones cuando se encuentra la palabra
-              // Ejemplo: encender un LED, enviar respuesta, etc.
-              // gpio_set_level(LED_PIN, 1);
-            }
-            else
-            {
-              ESP_LOGI(TAG, "Palabra '%s' NO encontrada", TARGET_WORD);
-            }
-
-            // Reiniciar buffer
-            text_index = 0;
-            clean_buffer(received_text, BUF_SIZE);
-          }
-        }
-        // Si es carácter imprimible, agregar al buffer
-        else if (c >= 32 && c <= 126 && text_index < BUF_SIZE - 1)
-        {
-          received_text[text_index++] = c;
-        }
-      }
-    }
-
-    vTaskDelay(500 / portTICK_PERIOD_MS);
   }
 }
 
