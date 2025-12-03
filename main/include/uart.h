@@ -3,19 +3,6 @@
 
 #include "driver/uart.h"
 
-/**
- * This example shows how to use the UART driver to handle special UART events.
- *
- * It also reads data from UART0 directly, and echoes it to console.
- *
- * - Port: UART0
- * - Receive (Rx) buffer: on
- * - Transmit (Tx) buffer: off
- * - Flow control: off
- * - Event queue: on
- * - Pin assignment: TxD (default), RxD (default)
- */
-
 extern const char *TAG;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
@@ -27,6 +14,68 @@ static QueueHandle_t uart0_queue;
 
 #define BUF_SIZE (1024)
 #define RD_BUF_SIZE (BUF_SIZE)
+
+typedef void (*func_varargs_t)(int n, ...);
+
+void fun1(int n, ...);
+void fun2(int n, ...);
+void fun3(int n, ...);
+void fun4(int n, ...);
+void fun5(int n, ...);
+void fun6(int n, ...);
+void fun7(int n, ...);
+void fun8(int n, ...);
+void fun9(int n, ...);
+void fun10(int n, ...);
+
+const char *COD[10] = {"activar", "1234", "inicio", "start", "enable", "go", "run", "on", "begin", "launch"};
+func_varargs_t funciones[10] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10};
+
+// Definir tipo para puntero a función con argumentos variables
+
+// Funciones de ejemplo con argumentos variables
+void fun1(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+
+void fun2(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+
+void fun3(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun4(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun5(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun6(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun7(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun8(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun9(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
+void fun10(int n, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+}
 
 void configura_uart(void)
 {
@@ -72,7 +121,8 @@ static void uart_event_task(void *pvParameters)
                 {
                     if (strstr((const char *)dtmp, COD1[i]) != NULL)
                     {
-                        printf("Codigo de activacion recibido: %s\n", COD1[i]);
+                        // printf("Codigo de activacion recibido: %s\n", COD1[i]);
+                        funciones[i](i);
                     }
                 }
             }
