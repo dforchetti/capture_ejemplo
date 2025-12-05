@@ -23,6 +23,7 @@
 // nvs_handle_t nvs_handle;
 
 const char *TAG = "capture";
+mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
 
 enum modo
 {
@@ -303,13 +304,28 @@ extern "C" void app_main(void)
       // ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num, dato.mean[0], 100.0 * (dato.max[0] / 80.0 - dato.mean[0]) / dato.mean[0], 100.0 * (dato.min[0] / 80.0 - dato.mean[0]) / dato.mean[0], dato.n_muestras[0], dato.mean[1], 100.0 * (dato.max[1] / 80.0 - dato.mean[1]) / dato.mean[1], 100.0 * (dato.min[1] / 80.0 - dato.mean[1]) / dato.mean[1], dato.n_muestras[1]);
       ESP_LOGI(TAG, "<%i>, GPIO:%i M:%2.6f NU %d, M:%2.6f ND %d", dato.cont, dato.gpio_num, dato.mean[0], dato.n_muestras[0], dato.mean[0], dato.n_muestras[1]);
     }
+
+    tactual = esp_timer_get_time();
+    if (tactual - tanterior >= 1000000)
+    {
+      tanterior = tactual;
+
+      estado = !estado;
+
+      if (estado)
+      {
+        mcpwm_capture_channel_enable(cap_chan[3]);
+      }
+      else
+      {
+        mcpwm_capture_channel_disable(cap_chan[3]);
+      }
+    }
     /*
         estado = !estado;
         //   gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
         contador++;
-        tactual = esp_timer_get_time();
         printf("%d (%ld).\n", contador, (tactual - tanterior) / 1000);
-        tanterior = tactual;
         vTaskDelay(500 / portTICK_PERIOD_MS);*/
   }
   //------------------------------------------------------------------------------------------
@@ -358,11 +374,15 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
   if (dato->count[edge] == 0)
   {
     dato->count[edge]++; // inicializo el contador de este flanco
+
     if (dato->count[!edge] == 0)
     {
-
       dato->t_anterior = value;
-      dato->dir_flanco_actual = edge;
+      dato->dir_flanco_anterior = edge;
+      // gpio_set_level((gpio_num_t)dato->dpin, 0);
+      // gpio_set_level((gpio_num_t)dato->dpin, 1);
+      gpio_set_level((gpio_num_t)dato->dpin, 0);
+      gpio_set_level((gpio_num_t)dato->dpin, 1);
       gpio_set_level((gpio_num_t)dato->dpin, 0);
       // gpio_set_level(GPIO_NUM_10, 0);
       return true;
@@ -378,9 +398,12 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
     gpio_set_level((gpio_num_t)dato->dpin, 0);
     gpio_set_level((gpio_num_t)dato->dpin, 1);
     gpio_set_level((gpio_num_t)dato->dpin, 0);
-    // gpio_set_level(GPIO_NUM_10, 0);
+    gpio_set_level((gpio_num_t)dato->dpin, 1);
+    gpio_set_level((gpio_num_t)dato->dpin, 0);
     return true;
   }
+
+  dato->dir_flanco_anterior = dato->dir_flanco_actual;
 
   delta = value - dato->t_anterior; //
   dato->t_anterior = value;
@@ -560,8 +583,6 @@ void config_capture(void)
 
   ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf[0], &cap_timer[0]));
   ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf[1], &cap_timer[1]));
-
-  mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
 
   CANAL[0].gpio_num = 2;
   CANAL[0].dpin = DEBUG_PIN_1;
