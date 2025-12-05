@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "capture_ejemplo",
-    "project_version":    "e620371-dirty",
+    "project_version":    "1c0add6-dirty",
     "project_path":       "C:/Users/daniel/Documents/Radares/code/IDF/capture_ejemplo",
     "idf_path":           "C:/Espressif/frameworks/esp-idf-v5.3.1",
     "build_dir":          "C:/Users/daniel/Documents/Radares/code/IDF/capture_ejemplo/build",
