@@ -1,6 +1,6 @@
 /* Automatically generated file; DO NOT EDIT */
 /* Espressif IoT Development Framework Linker Script */
-/* Generated from: C:\Users\daniel\Documents\Radares\code\IDF\capture_ejemplo\build\esp-idf\esp_system\ld\sections.ld.in */
+/* Generated from: C:\Users\daniel\Documents\MEGA\capture_ejemplo\build\esp-idf\esp_system\ld\sections.ld.in */
 
 /*
 

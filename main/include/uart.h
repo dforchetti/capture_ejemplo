@@ -1,5 +1,6 @@
 #ifndef UART_H
 #define UART_H
+#include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include "driver/uart.h"
@@ -110,9 +111,30 @@ bool fun10(int n, char *str, ...)
 // CANAL
 bool fun11(int n, char *str, ...)
 {
-    char *ptr;
-    printf("Codigo de activacion recibido: %s\n", COD[n]);
-    ptr = strstr();
+
+    char *token;
+    // descarta el primer espacio si lo hay
+    // strtok(str, "-");
+    // get the first token
+    token = strtok(str, "--"); // descarta el primer espacio si lo hay
+    token = strtok(NULL, "--");
+    int valor = 0;
+    bool dato_valido = false;
+    // walk through other tokens
+    while (token != NULL)
+    {
+        valor = atoi(token);
+        printf(" numero %d\n", valor);
+        token = strtok(NULL, "--"); // busca el siguiente token
+        dato_valido = true;
+    }
+    if (!dato_valido)
+    {
+        printf("datos -status");
+    }
+
+    //    printf("Codigo de activacion recibido: %s\n", COD[n]);
+    // ptr = strstr();
 
     return true;
 }
@@ -158,7 +180,6 @@ static void uart_event_task(void *pvParameters)
                 uart_read_bytes(EX_UART_NUM, dtmp, event.size, portMAX_DELAY);
 
                 // pasa a mayusculas
-
                 char *s = (char *)dtmp;
                 while (*s)
                 {
@@ -166,20 +187,30 @@ static void uart_event_task(void *pvParameters)
                     s++;
                 }
 
+                char *token;
                 char *ptr;
-
-                for (int i = 0; i < NCODIGOS; i++)
+                // get the first token
+                token = strtok((char *)dtmp, ",");
+                // walk through other tokens
+                while (token != NULL)
                 {
-                    ptr = strstr((const char *)dtmp, COD[i]);
-                    // ptr
+                    printf(" %s\n", token);
 
-                    if (ptr != NULL)
+                    for (int i = 0; i < NCODIGOS; i++)
                     {
-                        ESP_LOGI(TAG, "Comando reconocido: %s", ptr);
+                        ptr = strstr(token, COD[i]);
 
-                        comando_reconocido = funciones[i](i, (char *)dtmp);
+                        if (ptr != NULL)
+                        {
+                            ESP_LOGI(TAG, "Comando reconocido: %s", ptr);
+                            ptr = ptr + strlen(COD[i]);
+                            // ESP_LOGI(TAG, "parametros: %s", ptr);
+                            comando_reconocido = funciones[i](i, ptr);
+                        }
                     }
+                    token = strtok(NULL, ","); // busca el siguiente token
                 }
+
                 if (!comando_reconocido)
                 {
                     printf("Comando no reconocido: %s\n", dtmp);

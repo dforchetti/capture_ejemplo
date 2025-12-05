@@ -19,10 +19,12 @@
 #include <nvs_flash.h>
 #include <nvs.h>
 
+#define CONFIG_LOG_DEFAULT_LEVEL 0 // 1 #0 = NONE, 1 = ERROR, 2 = WARN, 3 = INFO, 4 = DEBUG, 5 = VERBOSE
 // Variables globales para NVS
 // nvs_handle_t nvs_handle;
 
 const char *TAG = "capture";
+const char *DATOS = "DATA";
 mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
 
 enum modo
@@ -247,6 +249,8 @@ void muestra_configuracion_nvs(mi_config_t *config)
 extern "C" void app_main(void)
 {
 
+  // esp_log_level_set(TAG, ESP_LOG_INFO);
+  esp_log_level_set(TAG, ESP_LOG_ERROR);
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
   init_nvs();
@@ -262,8 +266,6 @@ extern "C" void app_main(void)
   muestra_configuracion_nvs(&config); // muestra la configuración por defecto
 
   xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
-
-  esp_log_level_set(TAG, ESP_LOG_INFO);
 
   configura_uart();
   // Create a task to handler UART event from ISR
@@ -314,7 +316,7 @@ extern "C" void app_main(void)
       dato.mean[1] = (float)(dato.ui_mean_sum[1] / dato.n_muestras[1] / 80.0); // 80 MHz de reloj
 
       // ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num, dato.mean[0], 100.0 * (dato.max[0] / 80.0 - dato.mean[0]) / dato.mean[0], 100.0 * (dato.min[0] / 80.0 - dato.mean[0]) / dato.mean[0], dato.n_muestras[0], dato.mean[1], 100.0 * (dato.max[1] / 80.0 - dato.mean[1]) / dato.mean[1], 100.0 * (dato.min[1] / 80.0 - dato.mean[1]) / dato.mean[1], dato.n_muestras[1]);
-      ESP_LOGI(TAG, "<%i>, GPIO:%i M:%2.6f NU %d, M:%2.6f ND %d", dato.cont, dato.gpio_num, dato.mean[0], dato.n_muestras[0], dato.mean[0], dato.n_muestras[1]);
+      ESP_LOGI(DATOS, "<%i>, GPIO:%i M:%2.6f NU %d, M:%2.6f ND %d", dato.cont, dato.gpio_num, dato.mean[0], dato.n_muestras[0], dato.mean[0], dato.n_muestras[1]);
     }
 
     tactual = esp_timer_get_time();
