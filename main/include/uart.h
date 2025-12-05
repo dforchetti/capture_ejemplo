@@ -18,6 +18,8 @@ static QueueHandle_t uart0_queue;
 
 typedef bool (*func_varargs_t)(int n, char *str, ...);
 
+#define NCODIGOS 11
+
 bool fun1(int n, char *str, ...);
 bool fun2(int n, char *str, ...);
 bool fun3(int n, char *str, ...);
@@ -28,9 +30,21 @@ bool fun7(int n, char *str, ...);
 bool fun8(int n, char *str, ...);
 bool fun9(int n, char *str, ...);
 bool fun10(int n, char *str, ...);
+bool fun11(int n, char *str, ...);
 
-const char *COD[10] = {"START" /*1*/, "STOP" /*2*/, "RESTART" /*3*/, "RESET" /*4*/, "CALIBRA" /*5*/, "SAVE" /*6*/, "CONFIG" /*7*/, "BEGIN" /*8*/, "LAUNCH" /*9*/, "END" /*10*/};
-func_varargs_t funciones[10] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10};
+const char *COD[NCODIGOS] = {"START" /*1*/,
+                             "STOP" /*2*/,
+                             "RESTART" /*3*/,
+                             "RESET" /*4*/,
+                             "CALIBRA" /*5*/,
+                             "SAVE" /*6*/,
+                             "CONFIG" /*7*/,
+                             "BEGIN" /*8*/,
+                             "LAUNCH" /*9*/,
+                             "STATUS" /*10*/,
+                             "CANAL" /*11*/};
+
+func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11};
 
 // Definir tipo para puntero a función con argumentos variables
 
@@ -93,6 +107,15 @@ bool fun10(int n, char *str, ...)
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+// CANAL
+bool fun11(int n, char *str, ...)
+{
+    char *ptr;
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+    ptr = strstr();
+
+    return true;
+}
 
 void configura_uart(void)
 {
@@ -143,11 +166,17 @@ static void uart_event_task(void *pvParameters)
                     s++;
                 }
 
-                for (int i = 0; i < 10; i++)
+                char *ptr;
+
+                for (int i = 0; i < NCODIGOS; i++)
                 {
-                    if (strstr((const char *)dtmp, COD[i]) != NULL)
+                    ptr = strstr((const char *)dtmp, COD[i]);
+                    // ptr
+
+                    if (ptr != NULL)
                     {
-                        // printf("Codigo de activacion recibido: %s\n", COD1[i]);
+                        ESP_LOGI(TAG, "Comando reconocido: %s", ptr);
+
                         comando_reconocido = funciones[i](i, (char *)dtmp);
                     }
                 }
