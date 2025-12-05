@@ -16,8 +16,105 @@
 #include "soc/gpio_num.h"
 #include "driver/uart.h"
 #include "include/uart.h"
+#include <nvs_flash.h>
+#include <nvs.h>
+
+// Variables globales para NVS
+// nvs_handle_t nvs_handle;
 
 const char *TAG = "capture";
+
+enum modo
+{
+  APAGADO = 0,
+  ENCENDIDO = 1,
+  PAUSA = 2,
+  CALIBRA = 3,
+  TEST = 4,
+  ERROR = 5,
+};
+
+modo estado_actual = ENCENDIDO;
+
+typedef struct
+{
+  int gpio;
+  int enable;
+  int ui_mean;
+} canal_config;
+
+typedef struct
+{
+  canal_config CANAL[4];
+  modo modo_inicial;
+  int frec_emula;
+  int contador;
+} mi_config_t;
+
+void init_nvs()
+// Inicializar NVS
+{
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+  {
+    // NVS partition was truncated and needs to be erased
+    // Retry nvs_flash_init
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    err = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(err);
+}
+
+esp_err_t guardar_completo_nvs(mi_config_t *config)
+{
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+  if (err != ESP_OK)
+    return err;
+
+  // Guardar toda la estructura como un blob
+  err = nvs_set_blob(handle, "config", config, sizeof(mi_config_t));
+  if (err == ESP_OK)
+  {
+    err = nvs_commit(handle);
+  }
+  nvs_close(handle);
+  return err;
+}
+
+esp_err_t leer_completo_nvs(mi_config_t *config)
+{
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+  if (err != ESP_OK)
+    return err;
+
+  size_t longitud = sizeof(mi_config_t);
+  err = nvs_get_blob(handle, "config", config, &longitud);
+  nvs_close(handle);
+  return err;
+}
+
+// Definir una estructura personalizada
+typedef struct
+{
+  uint32_t contador;   // Contador de reinicios
+  float temperatura;   // Última temperatura leída
+  char nombre[32];     // Nombre del dispositivo
+  uint8_t config_bits; // Bits de configuración
+  bool estado;         // Estado ON/OFF
+} config_t;
+
+// Variables globales
+
+config_t mi_config = {
+    .contador = 0,
+    .temperatura = 25.5,
+    .nombre = "ESP32-Dispositivo",
+    .config_bits = 0b10101010,
+    .estado = true};
+
+//------------------------------------------------------------------------------------------
 
 // variable globales
 //------------------------------------------------------------------------------------------
@@ -36,8 +133,8 @@ const char *TAG = "capture";
 int frec_reloj_filtro = 150000;      // frecuencia de reloj del filtro en Hz
 int periodo = 2 / frec_reloj_filtro; // periodo en us
 
-#define DECIMACION 100000 // frec_reloj_filtro / CAPTURE_PRESCALER
-#define ACTUALIZA 1000    // frec_reloj_filtro / CAPTURE_PRESCALER
+#define DECIMACION 10000 // frec_reloj_filtro / CAPTURE_PRESCALER
+#define ACTUALIZA 1000   // frec_reloj_filtro / CAPTURE_PRESCALER
 
 data CANAL[N_CANALES];
 
@@ -137,10 +234,6 @@ extern "C" void app_main(void)
   //------------------------------------------------------------------------------------------
   config_GPIO();
 
-  // capture channels
-  //------------------------------------------------------------------------------------------
-  config_capture();
-
   // Config TIMER
   //------------------------------------------------------------------------------------------
   // config_timer();
@@ -149,12 +242,44 @@ extern "C" void app_main(void)
   //------------------------------------------------------------------------------------------
   config_mcpwm();
 
+  // capture channels
+  //------------------------------------------------------------------------------------------
+  config_capture();
+
   // Bucle principal
   //------------------------------------------------------------------------------------------
 
   ESP_LOGI(TAG, "Arrancanding CORE (%d)", xPortGetCoreID());
 
-  f_arraque = true;
+  init_nvs();
+
+  printf("\n");
+
+  mi_config_t config = {
+      .CANAL = {
+          {.gpio = 4, .enable = 1, .ui_mean = 100},
+          {.gpio = 5, .enable = 0, .ui_mean = 200},
+          {.gpio = 18, .enable = 1, .ui_mean = 150},
+          {.gpio = 19, .enable = 0, .ui_mean = 250}},
+      .modo_inicial = ENCENDIDO,
+      .frec_emula = 50,
+      .contador = 123456};
+
+  // Guardar
+  ESP_ERROR_CHECK(guardar_completo_nvs(&config));
+  printf("Guardado!\n");
+
+  // Leer
+  mi_config_t config_leida;
+
+  ESP_ERROR_CHECK(leer_completo_nvs(&config_leida));
+
+  printf("Leído: %d, contador=%d\n", config_leida.modo_inicial, config_leida.contador);
+
+  int contador = 0;
+  bool estado = false;
+  long tanterior = esp_timer_get_time();
+  long tactual;
 
   while (1) //{vTaskDelay(10);}
   {
@@ -168,6 +293,7 @@ extern "C" void app_main(void)
             f_envioExitoso = true;
             }
 */
+
     if (xQueueReceiveFromISR(xQueue, &dato, 0))
     {
 
@@ -177,7 +303,14 @@ extern "C" void app_main(void)
       // ESP_LOGI(TAG, "<%i>, GPIO:%i DU(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d), DD(%6.2fu) MAX(%6.2f%%) MIN(%6.2f%%) N(%d)", dato.cont, dato.gpio_num, dato.mean[0], 100.0 * (dato.max[0] / 80.0 - dato.mean[0]) / dato.mean[0], 100.0 * (dato.min[0] / 80.0 - dato.mean[0]) / dato.mean[0], dato.n_muestras[0], dato.mean[1], 100.0 * (dato.max[1] / 80.0 - dato.mean[1]) / dato.mean[1], 100.0 * (dato.min[1] / 80.0 - dato.mean[1]) / dato.mean[1], dato.n_muestras[1]);
       ESP_LOGI(TAG, "<%i>, GPIO:%i M:%2.6f NU %d, M:%2.6f ND %d", dato.cont, dato.gpio_num, dato.mean[0], dato.n_muestras[0], dato.mean[0], dato.n_muestras[1]);
     }
-    vTaskDelay(500);
+    /*
+        estado = !estado;
+        //   gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
+        contador++;
+        tactual = esp_timer_get_time();
+        printf("%d (%ld).\n", contador, (tactual - tanterior) / 1000);
+        tanterior = tactual;
+        vTaskDelay(500 / portTICK_PERIOD_MS);*/
   }
   //------------------------------------------------------------------------------------------
 }
@@ -224,9 +357,12 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
   // para saltear las cuentas si es la primera vez
   if (dato->count[edge] == 0)
   {
+    dato->count[edge]++; // inicializo el contador de este flanco
     if (dato->count[!edge] == 0)
     {
+
       dato->t_anterior = value;
+      dato->dir_flanco_actual = edge;
       gpio_set_level((gpio_num_t)dato->dpin, 0);
       // gpio_set_level(GPIO_NUM_10, 0);
       return true;
@@ -238,6 +374,12 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
   {
     dato->cont_errores++;
     dato->f_error = true;
+    // hace un doble parpadeo
+    gpio_set_level((gpio_num_t)dato->dpin, 0);
+    gpio_set_level((gpio_num_t)dato->dpin, 1);
+    gpio_set_level((gpio_num_t)dato->dpin, 0);
+    // gpio_set_level(GPIO_NUM_10, 0);
+    return true;
   }
 
   delta = value - dato->t_anterior; //
@@ -319,14 +461,14 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
     BaseType_t xHigherPriorityTaskWoken = pdFALSE;
     f_envioExitoso = xQueueSendFromISR(xQueue, &event, &xHigherPriorityTaskWoken); // dato faltante == true si no pudo enviar el dato en la cola
   }
-
-  if (dato->count[edge] == ACTUALIZA)
-  {
-    dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->count[edge];
-    dato->ui_mean_sum[edge] = 0;
-    dato->count[edge] = 0;
-  }
-
+  /*
+    if (dato->count[edge] == ACTUALIZA)
+    {
+      dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->count[edge];
+      dato->ui_mean_sum[edge] = 0;
+      dato->count[edge] = 0;
+    }
+  */
   gpio_set_level((gpio_num_t)dato->dpin, 0);
   // gpio_set_level(GPIO_NUM_10, 0);
   return true;
@@ -391,6 +533,10 @@ void config_GPIO(void)
   io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_4;
   ESP_ERROR_CHECK(gpio_config(&io_conf));
   ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_4, 0));
+
+  io_conf.pin_bit_mask = 1ULL << PIN_DE_SALIDA_SENAL;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(PIN_DE_SALIDA_SENAL, 0));
 }
 //------------------------------------------------------------------------------------------
 
@@ -482,11 +628,17 @@ void config_capture(void)
   ESP_ERROR_CHECK(mcpwm_capture_timer_enable(cap_timer[1]));
 
   ESP_LOGI(TAG, "start capture timer");
-  start_capture_timer();
-  // ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer[0]));
-  // ESP_ERROR_CHECK(mcpwm_capture_timer_start(cap_timer[1]));
 
-  ESP_LOGI(TAG, "start timer");
+  if (estado_actual == ENCENDIDO)
+  {
+    start_capture_timer();
+    ESP_LOGI(TAG, "CAPTURA encendido");
+  }
+  else
+  {
+    stop_capture_timer();
+    ESP_LOGI(TAG, "CAPTURA apagada");
+  }
 }
 //------------------------------------------------------------------------------------------
 

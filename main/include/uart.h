@@ -1,6 +1,7 @@
 #ifndef UART_H
 #define UART_H
-
+#include <stdio.h>
+#include <ctype.h>
 #include "driver/uart.h"
 
 extern const char *TAG;
@@ -15,66 +16,82 @@ static QueueHandle_t uart0_queue;
 #define BUF_SIZE (1024)
 #define RD_BUF_SIZE (BUF_SIZE)
 
-typedef void (*func_varargs_t)(int n, ...);
+typedef bool (*func_varargs_t)(int n, char *str, ...);
 
-void fun1(int n, ...);
-void fun2(int n, ...);
-void fun3(int n, ...);
-void fun4(int n, ...);
-void fun5(int n, ...);
-void fun6(int n, ...);
-void fun7(int n, ...);
-void fun8(int n, ...);
-void fun9(int n, ...);
-void fun10(int n, ...);
+bool fun1(int n, char *str, ...);
+bool fun2(int n, char *str, ...);
+bool fun3(int n, char *str, ...);
+bool fun4(int n, char *str, ...);
+bool fun5(int n, char *str, ...);
+bool fun6(int n, char *str, ...);
+bool fun7(int n, char *str, ...);
+bool fun8(int n, char *str, ...);
+bool fun9(int n, char *str, ...);
+bool fun10(int n, char *str, ...);
 
-const char *COD[10] = {"activar", "1234", "inicio", "start", "enable", "go", "run", "on", "begin", "launch"};
+const char *COD[10] = {"START" /*1*/, "STOP" /*2*/, "RESTART" /*3*/, "RESET" /*4*/, "CALIBRA" /*5*/, "SAVE" /*6*/, "CONFIG" /*7*/, "BEGIN" /*8*/, "LAUNCH" /*9*/, "END" /*10*/};
 func_varargs_t funciones[10] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10};
 
 // Definir tipo para puntero a función con argumentos variables
 
 // Funciones de ejemplo con argumentos variables
-void fun1(int n, ...)
+bool fun1(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
 
-void fun2(int n, ...)
+bool fun2(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
 
-void fun3(int n, ...)
+bool fun3(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    for (int i = 3; i >= 0; i--)
+    {
+        printf("reseteando %d\n", i);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    esp_restart();
+    return true;
 }
-void fun4(int n, ...)
+bool fun4(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
-void fun5(int n, ...)
+bool fun5(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
-void fun6(int n, ...)
+bool fun6(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
-void fun7(int n, ...)
+bool fun7(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
-void fun8(int n, ...)
+bool fun8(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
-void fun9(int n, ...)
+bool fun9(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
-void fun10(int n, ...)
+bool fun10(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+    return true;
 }
 
 void configura_uart(void)
@@ -99,13 +116,12 @@ void configura_uart(void)
     uart_pattern_queue_reset(EX_UART_NUM, 20);
 }
 
-const char *COD1[10] = {"activar", "1234", "inicio", "start", "enable", "go", "run", "on", "begin", "launch"};
-
 static void uart_event_task(void *pvParameters)
 {
     uart_event_t event;
     size_t buffered_size;
     uint8_t *dtmp = (uint8_t *)malloc(RD_BUF_SIZE);
+    bool comando_reconocido = false;
     for (;;)
     {
         // Waiting for UART event.
@@ -117,13 +133,27 @@ static void uart_event_task(void *pvParameters)
             if (event.type == UART_DATA)
             {
                 uart_read_bytes(EX_UART_NUM, dtmp, event.size, portMAX_DELAY);
+
+                // pasa a mayusculas
+
+                char *s = (char *)dtmp;
+                while (*s)
+                {
+                    *s = toupper((unsigned char)*s);
+                    s++;
+                }
+
                 for (int i = 0; i < 10; i++)
                 {
-                    if (strstr((const char *)dtmp, COD1[i]) != NULL)
+                    if (strstr((const char *)dtmp, COD[i]) != NULL)
                     {
                         // printf("Codigo de activacion recibido: %s\n", COD1[i]);
-                        funciones[i](i);
+                        comando_reconocido = funciones[i](i, (char *)dtmp);
                     }
+                }
+                if (!comando_reconocido)
+                {
+                    printf("Comando no reconocido: %s\n", dtmp);
                 }
             }
             else
