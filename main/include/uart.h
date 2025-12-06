@@ -5,7 +5,12 @@
 #include <ctype.h>
 #include "driver/uart.h"
 
+char *separa_argumentos = "--";
+char *separa_comandos = ",";
+
 extern const char *TAG;
+extern data CANAL[];
+extern mcpwm_cap_channel_handle_t cap_chan[];
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -116,21 +121,54 @@ bool fun11(int n, char *str, ...)
     // descarta el primer espacio si lo hay
     // strtok(str, "-");
     // get the first token
-    token = strtok(str, "--"); // descarta el primer espacio si lo hay
-    token = strtok(NULL, "--");
+    token = strtok(str, separa_argumentos); // descarta el primer espacio si lo hay
+    token = strtok(NULL, separa_argumentos);
     int valor = 0;
     bool dato_valido = false;
     // walk through other tokens
     while (token != NULL)
     {
         valor = atoi(token);
+
         printf(" numero %d\n", valor);
-        token = strtok(NULL, "--"); // busca el siguiente token
+
+        token = strtok(NULL, separa_argumentos); // busca el siguiente token
+
         dato_valido = true;
+
+        if (valor >= 1 && valor <= 4)
+        {
+            CANAL[valor - 1].enable = CANAL[valor - 1].enable ? false : true;
+            printf("CANAL:%d\tE:%s\tgpio:%d\tID:%d\tmedU:%u\tmedD:%u\n", valor,
+                   (CANAL[valor - 1].enable) ? "E" : "D",
+                   CANAL[valor - 1].gpio_num,
+                   CANAL[valor - 1].ID,
+                   (unsigned int)CANAL[valor - 1].ui_mean[0],
+                   (unsigned int)CANAL[valor - 1].ui_mean[1]);
+            if (CANAL[valor - 1].enable)
+            {
+                mcpwm_capture_channel_enable(cap_chan[valor - 1]);
+            }
+            else
+            {
+                mcpwm_capture_channel_disable(cap_chan[valor - 1]);
+            }
+        }
     }
+
     if (!dato_valido)
     {
-        printf("datos -status");
+        printf("\n----canales status----\n");
+        for (int i = 0; i < 4; i++)
+        {
+            printf("CANAL:%d\tE:%s\tgpio:%d\tID:%d\tmedU:%u\tmedD:%u\n", i + 1,
+                   (CANAL[i].enable) ? "E" : "D",
+                   CANAL[i].gpio_num,
+                   CANAL[i].ID,
+                   (unsigned int)CANAL[i].ui_mean[0],
+                   (unsigned int)CANAL[i].ui_mean[1]);
+        }
+        printf("---------------------\n");
     }
 
     //    printf("Codigo de activacion recibido: %s\n", COD[n]);
@@ -190,7 +228,7 @@ static void uart_event_task(void *pvParameters)
                 char *token;
                 char *ptr;
                 // get the first token
-                token = strtok((char *)dtmp, ",");
+                token = strtok((char *)dtmp, separa_comandos);
                 // walk through other tokens
                 while (token != NULL)
                 {
@@ -208,7 +246,7 @@ static void uart_event_task(void *pvParameters)
                             comando_reconocido = funciones[i](i, ptr);
                         }
                     }
-                    token = strtok(NULL, ","); // busca el siguiente token
+                    token = strtok(NULL, separa_comandos); // busca el siguiente token
                 }
 
                 if (!comando_reconocido)

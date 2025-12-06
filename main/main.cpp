@@ -19,9 +19,9 @@
 #include <nvs_flash.h>
 #include <nvs.h>
 
-#define CONFIG_LOG_DEFAULT_LEVEL 0 // 1 #0 = NONE, 1 = ERROR, 2 = WARN, 3 = INFO, 4 = DEBUG, 5 = VERBOSE
-// Variables globales para NVS
-// nvs_handle_t nvs_handle;
+// #define CONFIG_LOG_DEFAULT_LEVEL 0 // 1 #0 = NONE, 1 = ERROR, 2 = WARN, 3 = INFO, 4 = DEBUG, 5 = VERBOSE
+//  Variables globales para NVS
+//  nvs_handle_t nvs_handle;
 
 const char *TAG = "capture";
 const char *DATOS = "DATA";
@@ -302,7 +302,6 @@ extern "C" void app_main(void)
 
   ESP_LOGI(TAG, "Arrancanding CORE (%d)", xPortGetCoreID());
 
-  int contador = 0;
   bool estado = false;
   long tanterior = esp_timer_get_time();
   long tactual;

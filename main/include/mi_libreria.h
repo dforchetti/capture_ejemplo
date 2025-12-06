@@ -38,6 +38,7 @@ public:
   int cap_timer;            // el timer asociado a la medicion de tiempo 0/1
   int ID;                   // un numero identificatorio 1,2,3,..etc
   int code;                 // un codigo identificatorio cualqueira 111,222, etc
+  bool enable;              // canal habilitado/deshabilitado
   int dir_flanco_actual;    // UP/DOWN
   bool dir_flanco_anterior; // UP/DOWN
   int cont_errores;         // contador de errores en el procesamiento de los datos
