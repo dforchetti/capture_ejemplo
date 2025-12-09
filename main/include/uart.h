@@ -5,7 +5,14 @@
 #include <ctype.h>
 #include "driver/uart.h"
 
+char *separa_argumentos = "--";
+char *separa_comandos = ",";
+
 extern const char *TAG;
+extern data CANAL[];
+extern mcpwm_cap_channel_handle_t cap_chan[];
+extern bool _simula_;
+extern mcpwm_timer_handle_t h_timer;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -40,7 +47,7 @@ const char *COD[NCODIGOS] = {"START" /*1*/,
                              "CALIBRA" /*5*/,
                              "SAVE" /*6*/,
                              "CONFIG" /*7*/,
-                             "BEGIN" /*8*/,
+                             "SIMULA" /*8*/,
                              "LAUNCH" /*9*/,
                              "STATUS" /*10*/,
                              "CANAL" /*11*/};
@@ -53,6 +60,27 @@ func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, 
 bool fun1(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (CANAL[i].enable)
+        {
+            // estos valores son para reiniciar las cuentas de cada canal
+            CANAL[i].f_error = false;
+            CANAL[i].cont_errores = 0;
+            CANAL[i].dir_flanco_actual = 0;
+            CANAL[i].dir_flanco_anterior = 0;
+            CANAL[i].t_anterior = 0;
+            CANAL[i].reinicia_variables();
+
+            // esto es para que vuelva a ingresar a la interrupcio
+            mcpwm_capture_channel_enable(cap_chan[i]);
+        }
+        else
+        {
+            mcpwm_capture_channel_disable(cap_chan[i]);
+        }
+    }
     return true;
 }
 
@@ -93,9 +121,22 @@ bool fun7(int n, char *str, ...)
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
 bool fun8(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    _simula_ = !_simula_;
+
+    if (_simula_)
+    {
+        ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
+    }
+    else
+    {
+        ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
+    }
+
     return true;
 }
 bool fun9(int n, char *str, ...)
@@ -116,21 +157,67 @@ bool fun11(int n, char *str, ...)
     // descarta el primer espacio si lo hay
     // strtok(str, "-");
     // get the first token
-    token = strtok(str, "--"); // descarta el primer espacio si lo hay
-    token = strtok(NULL, "--");
+    token = strtok(str, separa_argumentos); // descarta el primer espacio si lo hay
+    token = strtok(NULL, separa_argumentos);
     int valor = 0;
     bool dato_valido = false;
     // walk through other tokens
     while (token != NULL)
     {
         valor = atoi(token);
+
         printf(" numero %d\n", valor);
-        token = strtok(NULL, "--"); // busca el siguiente token
+
+        token = strtok(NULL, separa_argumentos); // busca el siguiente token
+
         dato_valido = true;
+
+        if (valor >= 1 && valor <= 4)
+        {
+            int i = valor - 1;
+
+            // CANAL[i].enable = CANAL[i].enable ? false : true;
+
+            printf("CANAL:%d\tE:%s\tgpio:%d\tID:%d\tmedU:%u\tmedD:%u\n", valor,
+                   (CANAL[i].enable) ? "E" : "D",
+                   CANAL[i].gpio_num,
+                   CANAL[i].ID,
+                   (unsigned int)CANAL[i].ui_mean[0],
+                   (unsigned int)CANAL[i].ui_mean[1]);
+
+            if (CANAL[i].enable)
+            {
+                // estos valores son para reiniciar las cuentas de cada canal
+                CANAL[i].f_error = false;
+                CANAL[i].cont_errores = 0;
+                CANAL[i].dir_flanco_actual = 0;
+                CANAL[i].dir_flanco_anterior = 0;
+                CANAL[i].t_anterior = 0;
+                CANAL[i].reinicia_variables();
+
+                // esto es para que vuelva a ingresar a la interrupcio
+                mcpwm_capture_channel_enable(cap_chan[i]);
+            }
+            else
+            {
+                mcpwm_capture_channel_disable(cap_chan[i]);
+            }
+        }
     }
+
     if (!dato_valido)
     {
-        printf("datos -status");
+        printf("\n----canales status----\n");
+        for (int i = 0; i < 4; i++)
+        {
+            printf("CANAL:%d\tE:%s\tgpio:%d\tID:%d\tmedU:%u\tmedD:%u\n", i + 1,
+                   (CANAL[i].enable) ? "E" : "D",
+                   CANAL[i].gpio_num,
+                   CANAL[i].ID,
+                   (unsigned int)CANAL[i].ui_mean[0],
+                   (unsigned int)CANAL[i].ui_mean[1]);
+        }
+        printf("---------------------\n");
     }
 
     //    printf("Codigo de activacion recibido: %s\n", COD[n]);
@@ -190,7 +277,7 @@ static void uart_event_task(void *pvParameters)
                 char *token;
                 char *ptr;
                 // get the first token
-                token = strtok((char *)dtmp, ",");
+                token = strtok((char *)dtmp, separa_comandos);
                 // walk through other tokens
                 while (token != NULL)
                 {
@@ -208,7 +295,7 @@ static void uart_event_task(void *pvParameters)
                             comando_reconocido = funciones[i](i, ptr);
                         }
                     }
-                    token = strtok(NULL, ","); // busca el siguiente token
+                    token = strtok(NULL, separa_comandos); // busca el siguiente token
                 }
 
                 if (!comando_reconocido)

@@ -33,20 +33,22 @@ public:
   //-----------------------------------------------------------------------------------
   // config
   //-----------------------------------------------------------------------------------
-  int gpio_num;             // el GPIO asociado a la captura
-  int dpin;                 // el pin asociado al debug del GPIO
-  int cap_timer;            // el timer asociado a la medicion de tiempo 0/1
-  int ID;                   // un numero identificatorio 1,2,3,..etc
-  int code;                 // un codigo identificatorio cualqueira 111,222, etc
-  int dir_flanco_actual;    // UP/DOWN
-  bool dir_flanco_anterior; // UP/DOWN
-  int cont_errores;         // contador de errores en el procesamiento de los datos
-  bool f_error;             // flag de error true/false desde la ultima vez que se controló
+  int gpio_num;  // el GPIO asociado a la captura
+  int dpin;      // el pin asociado al debug del GPIO
+  int cap_timer; // el timer asociado a la medicion de tiempo 0/1
+  int ID;        // un numero identificatorio 1,2,3,..etc
+  int code;      // un codigo identificatorio cualqueira 111,222, etc
+  bool enable;   // canal habilitado/deshabilitado
+
   //-----------------------------------------------------------------------------------
   // trigger el indice 2 obedece a estadoUP, estado DOWN
   //-----------------------------------------------------------------------------------
   // uint32_t delta_trigger_max[2];     // umbral maximo de disparo
   // uint32_t delta_trigger_min[2];     // umbral maximo de disparo
+  bool f_error;             // flag de error true/false desde la ultima vez que se controló
+  int cont_errores;         // contador de errores en el procesamiento de los datos
+  bool dir_flanco_anterior; // UP/DOWN
+  bool dir_flanco_actual;   // UP/DOWN
   uint32_t t_anterior;
   uint32_t delta_max[2]; // error maximo de tiempo
 
@@ -78,6 +80,7 @@ public:
   ~data();
 
   void reset();
+  void reinicia_variables(void);
 };
 
 data::data()
@@ -91,29 +94,39 @@ data::~data()
 void data::reset(void)
 {
   this->gpio_num = 0;
+  this->dpin = 0;
   this->cap_timer = 0;
   this->ID = 0;
   this->code = 0;
-  this->dir_flanco_actual = 0;
-  this->dir_flanco_anterior = 0;
-  this->cont_errores = 0;
-  this->f_error = 0;
+  this->enable = false;
 
+  this->f_error = false;
+  this->cont_errores = 0;
+  this->dir_flanco_anterior = false;
+  this->dir_flanco_actual = false;
+
+  this->t_anterior = 0;
+
+  this->reinicia_variables();
+}
+void data::reinicia_variables(void)
+{
   for (int i = 0; i < 2; i++)
   {
-    this->count[i] = 0;
-    this->M2[i] = 0;
-    this->ui_mean[i] = 0;
-    this->ui_mean_sum[i] = 0;
-    // this->delta_trigger_max[i] = TRIGG_MAX;
-    // this->delta_trigger_min[i] = TRIGG_MIN;
-    this->contador_disparos_max[i] = N_disparos_MAX;
-    this->contador_disparos_min[i] = N_disparos_MIN;
+    this->delta_max[i] = 0;
+    this->contador_disparos_max[i] = 0;
+    this->contador_disparos_min[i] = 0;
     this->contador_error_disparos[i] = 0;
+
     this->max[i] = 0;
-    this->min[i] = 0;
-    this->n_max_disparos[i] = 0;
+    this->min[i] = 0x7FFFFFFF;
+    this->n_max_disparos[i] = N_disparos_MAX;
     this->flag_evento[i] = false;
+
+    this->ui_mean[i] = 0;
+    this->M2[i] = 0;
+    this->ui_mean_sum[i] = 0;
+    this->count[i] = 0;
   }
 }
 
