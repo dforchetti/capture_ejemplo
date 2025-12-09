@@ -7,14 +7,14 @@
                 "${config:idf.buildPath}/compile_commands.json"
             ],
             "includePath": [
-                "${config:idf.espIdfPath}/components/**",
+                //"${config:idf.espIdfPath}/components/**",
                 "${config:idf.espIdfPathWin}/components/**",
                 "${workspaceFolder}/**",
                 "C:/Espressif/tools/xtensa-esp-elf/esp-13.2.0_20240530/xtensa-esp-elf/xtensa-esp-elf/include"
             ],
             "browse": {
                 "path": [
-                    "${config:idf.espIdfPath}/components",
+                    //  "${config:idf.espIdfPath}/components",
                     "${config:idf.espIdfPathWin}/components",
                     "${workspaceFolder}"
                 ],

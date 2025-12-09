@@ -23,12 +23,11 @@
 //  Variables globales para NVS
 //  nvs_handle_t nvs_handle;
 
-#define GUARDAR_CONFIGURACION_NVS true
+#define GUARDAR_CONFIGURACION_NVS false
 
-const char *TAG = "capture";
-const char *DATOS = "DATA";
-mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
-
+//------------------------------------------------------------------------------------------
+// tipos de datos
+//------------------------------------------------------------------------------------------
 enum modo
 {
   APAGADO = 0,
@@ -38,10 +37,6 @@ enum modo
   TEST = 4,
   ERROR = 5,
 };
-
-bool _simula_ = true;
-
-modo estado_actual = ENCENDIDO;
 
 typedef struct
 {
@@ -62,120 +57,6 @@ typedef struct
   int contador;
 } mi_config_t;
 
-void init_nvs()
-// Inicializar NVS
-{
-  esp_err_t err = nvs_flash_init();
-  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
-  {
-    // NVS partition was truncated and needs to be erased
-    // Retry nvs_flash_init
-    ESP_ERROR_CHECK(nvs_flash_erase());
-    err = nvs_flash_init();
-  }
-  ESP_ERROR_CHECK(err);
-}
-
-esp_err_t guardar_completo_nvs(mi_config_t *config)
-{
-  nvs_handle_t handle;
-  esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
-  if (err != ESP_OK)
-    return err;
-
-  // Guardar toda la estructura como un blob
-  err = nvs_set_blob(handle, "config", config, sizeof(mi_config_t));
-  if (err == ESP_OK)
-  {
-    err = nvs_commit(handle);
-  }
-  nvs_close(handle);
-  return err;
-}
-
-esp_err_t leer_completo_nvs(mi_config_t *config)
-{
-  nvs_handle_t handle;
-  esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
-  if (err != ESP_OK)
-    return err;
-
-  size_t longitud = sizeof(mi_config_t);
-  err = nvs_get_blob(handle, "config", config, &longitud);
-  nvs_close(handle);
-  return err;
-}
-
-// Definir una estructura personalizada
-typedef struct
-{
-  uint32_t contador;   // Contador de reinicios
-  float temperatura;   // Última temperatura leída
-  char nombre[32];     // Nombre del dispositivo
-  uint8_t config_bits; // Bits de configuración
-  bool estado;         // Estado ON/OFF
-} config_t;
-
-// Variables globales
-
-config_t mi_config = {
-    .contador = 0,
-    .temperatura = 25.5,
-    .nombre = "ESP32-Dispositivo",
-    .config_bits = 0b10101010,
-    .estado = true};
-
-//------------------------------------------------------------------------------------------
-
-// variable globales
-//------------------------------------------------------------------------------------------
-#define PIN_DE_SALIDA_SENAL GPIO_NUM_1
-
-#define DEBUG_PIN_1 GPIO_NUM_10
-#define DEBUG_PIN_2 GPIO_NUM_11
-#define DEBUG_PIN_3 GPIO_NUM_12
-#define DEBUG_PIN_4 GPIO_NUM_13
-
-#define N_CANALES 4
-#define CAPTURE_PRESCALER 20;
-
-#define PWM_RESOLUTION_HZ 80000000 // 80 MHz
-
-int frec_reloj_filtro = 150000;      // frecuencia de reloj del filtro en Hz
-int periodo = 2 / frec_reloj_filtro; // periodo en us
-
-#define DECIMACION 10000 // frec_reloj_filtro / CAPTURE_PRESCALER
-#define ACTUALIZA 1000   // frec_reloj_filtro / CAPTURE_PRESCALER
-
-data CANAL[N_CANALES];
-
-bool led_state = false;
-static bool debug_state = false;
-volatile bool f_envioExitoso = true;
-volatile bool f_calibra_media = false;
-bool f_arraque = false;
-//------------------------------------------------------------------------------------------
-
-// funciones
-//------------------------------------------------------------------------------------------
-void debug(void);
-void config_GPIO(void);
-void config_capture(void);
-void config_mcpwm(void);
-void config_timer(void);
-void start_capture_timer(void);
-void stop_capture_timer(void);
-
-static void timer_callback(void *arg);
-static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
-                             const mcpwm_capture_event_data_t *edata,
-                             void *user_data);
-//------------------------------------------------------------------------------------------
-
-// Crear mutex
-portMUX_TYPE spinlock_isr = portMUX_INITIALIZER_UNLOCKED;
-QueueHandle_t xQueue = NULL;
-
 // estructura para el intercambio de datos con la interrupcion
 struct CaptureEvent
 {
@@ -189,8 +70,80 @@ struct CaptureEvent
   gpio_num_t gpio_num;
 };
 
+//------------------------------------------------------------------------------------------
+// variable globales
+//------------------------------------------------------------------------------------------
+
+#define PIN_DE_SALIDA_SENAL GPIO_NUM_1
+#define DEBUG_PIN_1 GPIO_NUM_10
+#define DEBUG_PIN_2 GPIO_NUM_11
+#define DEBUG_PIN_3 GPIO_NUM_12
+#define DEBUG_PIN_4 GPIO_NUM_13
+#define N_CANALES 4
+#define CAPTURE_PRESCALER 20;
+
+#define PWM_RESOLUTION_HZ 80000000 // 80 MHz
+#define DECIMACION 10000           // frec_reloj_filtro / CAPTURE_PRESCALER
+#define ACTUALIZA 1000             // frec_reloj_filtro / CAPTURE_PRESCALER
+
+int frec_reloj_filtro = 150000;      // frecuencia de reloj del filtro en Hz
+int periodo = 2 / frec_reloj_filtro; // periodo en us
+
+modo estado_actual = ENCENDIDO;
+
+const char *TAG = "capture";
+const char *DATOS = "DATA";
+
+mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
+bool _simula_ = true;
+
+data CANAL[N_CANALES];
+
+bool led_state = false;
+static bool debug_state = false;
+volatile bool f_envioExitoso = true;
+volatile bool f_calibra_media = false;
+bool f_arraque = false;
+
+mi_config_t config_default = {
+    .CANAL = {
+        {.gpio_num = 2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 0},
+        {.gpio_num = 4, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 0},
+        {.gpio_num = 16, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 0},
+        {.gpio_num = 17, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 0}},
+    .modo_inicial = APAGADO,
+    .frec_emula = 150000,
+    .contador = 0};
+
 struct CaptureEvent dato;
 
+// Crear mutex
+portMUX_TYPE spinlock_isr = portMUX_INITIALIZER_UNLOCKED;
+QueueHandle_t xQueue = NULL;
+
+//------------------------------------------------------------------------------------------
+// funciones
+//------------------------------------------------------------------------------------------
+void debug(void);
+void config_GPIO(void);
+void config_capture(void);
+void config_mcpwm(void);
+void config_timer(void);
+void start_capture_timer(void);
+void stop_capture_timer(void);
+void init_nvs();
+esp_err_t guardar_completo_nvs(mi_config_t *config);
+esp_err_t leer_completo_nvs(mi_config_t *config);
+void inicia_variables_globales(mi_config_t *config);
+void muestra_configuracion_nvs(mi_config_t *config);
+
+static void timer_callback(void *arg);
+static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
+                             const mcpwm_capture_event_data_t *edata,
+                             void *user_data);
+//------------------------------------------------------------------------------------------
+
+//
 void task1(void *parameter)
 {
   static int64_t t_anterior, t_actual;
@@ -218,75 +171,27 @@ void task1(void *parameter)
   }
 }
 
-mi_config_t config_default = {
-    .CANAL = {
-        {.gpio_num = 2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 0},
-        {.gpio_num = 4, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 0},
-        {.gpio_num = 16, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 0},
-        {.gpio_num = 17, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 0}},
-    .modo_inicial = APAGADO,
-    .frec_emula = 150000,
-    .contador = 0};
-
-void muestra_configuracion_nvs(mi_config_t *config)
-{
-  ESP_LOGI(TAG, "Configuracion leida de NVS:");
-  for (int i = 0; i < N_CANALES; i++)
-  {
-    ESP_LOGI(TAG, "CANAL %d: GPIO=%d, DPIN=%d, CAP_TIMER=%d, ID=%d, CODE=%d, ENABLE=%d, UI_MEAN=%d",
-             i,
-             config->CANAL[i].gpio_num,
-             config->CANAL[i].dpin,
-             config->CANAL[i].cap_timer,
-             config->CANAL[i].ID,
-             config->CANAL[i].code,
-             config->CANAL[i].enable,
-             config->CANAL[i].ui_mean);
-  }
-  ESP_LOGI(TAG, "MODO_INICIAL=%d", config->modo_inicial);
-  ESP_LOGI(TAG, "FREC_EMULA=%d", config->frec_emula);
-  ESP_LOGI(TAG, "CONTADOR=%d", config->contador);
-
-  return;
-}
-
-void inicia_variables_globales(mi_config_t *config)
-{
-  for (int i = 0; i < N_CANALES; i++)
-  {
-    CANAL[i].code = config->CANAL[i].code;
-    CANAL[i].dpin = config->CANAL[i].dpin;
-    CANAL[i].gpio_num = config->CANAL[i].gpio_num;
-    CANAL[i].ID = config->CANAL[i].ID;
-    CANAL[i].enable = config->CANAL[i].enable;
-    CANAL[i].ui_mean[0] = config->CANAL[i].ui_mean;
-    CANAL[i].ui_mean[1] = config->CANAL[i].ui_mean;
-  }
-  return;
-}
-
 extern "C" void app_main(void)
 {
-  // esp_log_level_set(TAG, ESP_LOG_INFO);
-  esp_log_level_set(TAG, ESP_LOG_ERROR);
-
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
   init_nvs();
-
-  if (GUARDAR_CONFIGURACION_NVS)
-  {
-    ESP_ERROR_CHECK(guardar_completo_nvs(&config_default));
-    printf("Guardado!\n");
-    inicia_variables_globales(&config_default);
-  }
-  else
-  {
-    mi_config_t config_leida;
-    ESP_ERROR_CHECK(leer_completo_nvs(&config_leida));
-    muestra_configuracion_nvs(&config_leida);
-    inicia_variables_globales(&config_leida);
-  }
+  /*
+    if (GUARDAR_CONFIGURACION_NVS)
+    {
+      ESP_ERROR_CHECK(guardar_completo_nvs(&config_default));
+      printf("Guardado!\n");
+      inicia_variables_globales(&config_default);
+    }
+    else
+    {
+      mi_config_t config_leida;
+      ESP_ERROR_CHECK(leer_completo_nvs(&config_leida));
+      muestra_configuracion_nvs(&config_leida);
+      inicia_variables_globales(&config_leida);
+    }
+    */
+  inicia_variables_globales(&config_default);
 
   xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
 
@@ -329,6 +234,11 @@ extern "C" void app_main(void)
   long tanterior = esp_timer_get_time();
   long tactual;
 
+  /*printf("ACA...\n");
+  while (1)
+  {
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+  }*/
   while (1) //{vTaskDelay(10);}
   {
     if (xQueueReceiveFromISR(xQueue, &dato, 0))
@@ -347,6 +257,7 @@ extern "C" void app_main(void)
       tanterior = tactual;
 
       estado = !estado;
+      printf("ESTADO...%d\n", estado);
 
       if (estado)
       {
@@ -619,16 +530,7 @@ void config_capture(void)
 
   ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf[0], &cap_timer[0]));
   ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf[1], &cap_timer[1]));
-  /*
-    for (int i = 0; i < N_CANALES; i++)
-    {
-      CANAL[i].gpio_num = config.CANAL[i].gpio_num;
-      CANAL[i].dpin = config.CANAL[i].dpin;
-      CANAL[i].cap_timer = config.CANAL[i].cap_timer;
-      CANAL[i].ID = config.CANAL[i].ID;
-      CANAL[i].code = config.CANAL[i].code;
-    }
-  */
+
   mcpwm_capture_channel_config_t cap_ch_conf;
 
   cap_ch_conf.gpio_num = 0;
@@ -814,4 +716,86 @@ void config_mcpwm(void)
 
   // si le quiero cambiar el periodo
   // mcpwm_timer_set_period(timer, period_ticks)
+}
+
+void init_nvs()
+// Inicializar NVS
+{
+  esp_err_t err = nvs_flash_init();
+  if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND)
+  {
+    // NVS partition was truncated and needs to be erased
+    // Retry nvs_flash_init
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    err = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(err);
+}
+
+esp_err_t guardar_completo_nvs(mi_config_t *config)
+{
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open("storage", NVS_READWRITE, &handle);
+  if (err != ESP_OK)
+    return err;
+
+  // Guardar toda la estructura como un blob
+  err = nvs_set_blob(handle, "config", config, sizeof(mi_config_t));
+  if (err == ESP_OK)
+  {
+    err = nvs_commit(handle);
+  }
+  nvs_close(handle);
+  return err;
+}
+
+esp_err_t leer_completo_nvs(mi_config_t *config)
+{
+  nvs_handle_t handle;
+  esp_err_t err = nvs_open("storage", NVS_READONLY, &handle);
+  if (err != ESP_OK)
+    return err;
+
+  size_t longitud = sizeof(mi_config_t);
+  err = nvs_get_blob(handle, "config", config, &longitud);
+  nvs_close(handle);
+  return err;
+}
+
+void muestra_configuracion_nvs(mi_config_t *config)
+{
+  ESP_LOGI(TAG, "Configuracion leida de NVS:");
+  for (int i = 0; i < N_CANALES; i++)
+  {
+    ESP_LOGI(TAG, "CANAL %d: GPIO=%d, DPIN=%d, CAP_TIMER=%d, ID=%d, CODE=%d, ENABLE=%d, UI_MEAN=%d",
+             i,
+             config->CANAL[i].gpio_num,
+             config->CANAL[i].dpin,
+             config->CANAL[i].cap_timer,
+             config->CANAL[i].ID,
+             config->CANAL[i].code,
+             config->CANAL[i].enable,
+             config->CANAL[i].ui_mean);
+  }
+  ESP_LOGI(TAG, "MODO_INICIAL=%d", config->modo_inicial);
+  ESP_LOGI(TAG, "FREC_EMULA=%d", config->frec_emula);
+  ESP_LOGI(TAG, "CONTADOR=%d", config->contador);
+
+  return;
+}
+
+void inicia_variables_globales(mi_config_t *config)
+{
+  for (int i = 0; i < N_CANALES; i++)
+  {
+    CANAL[i].code = config->CANAL[i].code;
+    CANAL[i].dpin = config->CANAL[i].dpin;
+    CANAL[i].gpio_num = config->CANAL[i].gpio_num;
+    CANAL[i].cap_timer = config->CANAL[i].cap_timer;
+    CANAL[i].ID = config->CANAL[i].ID;
+    CANAL[i].enable = config->CANAL[i].enable;
+    CANAL[i].ui_mean[0] = config->CANAL[i].ui_mean;
+    CANAL[i].ui_mean[1] = config->CANAL[i].ui_mean;
+  }
+  return;
 }
