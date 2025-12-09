@@ -23,6 +23,8 @@
 //  Variables globales para NVS
 //  nvs_handle_t nvs_handle;
 
+#define GUARDAR_CONFIGURACION_NVS true
+
 const char *TAG = "capture";
 const char *DATOS = "DATA";
 mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
@@ -37,6 +39,8 @@ enum modo
   ERROR = 5,
 };
 
+bool _simula_ = true;
+
 modo estado_actual = ENCENDIDO;
 
 typedef struct
@@ -46,7 +50,7 @@ typedef struct
   int cap_timer;
   int ID;
   int code;
-  int enable;
+  bool enable;
   int ui_mean;
 } canal_config;
 
@@ -214,14 +218,14 @@ void task1(void *parameter)
   }
 }
 
-mi_config_t config = {
+mi_config_t config_default = {
     .CANAL = {
-        {.gpio_num = 2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 4000},
-        {.gpio_num = 4, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 4000},
-        {.gpio_num = 16, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 4000},
-        {.gpio_num = 17, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 4000}},
-    .modo_inicial = ENCENDIDO,
-    .frec_emula = 1000,
+        {.gpio_num = 2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 0},
+        {.gpio_num = 4, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 0},
+        {.gpio_num = 16, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 0},
+        {.gpio_num = 17, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 0}},
+    .modo_inicial = APAGADO,
+    .frec_emula = 150000,
     .contador = 0};
 
 void muestra_configuracion_nvs(mi_config_t *config)
@@ -246,24 +250,43 @@ void muestra_configuracion_nvs(mi_config_t *config)
   return;
 }
 
+void inicia_variables_globales(mi_config_t *config)
+{
+  for (int i = 0; i < N_CANALES; i++)
+  {
+    CANAL[i].code = config->CANAL[i].code;
+    CANAL[i].dpin = config->CANAL[i].dpin;
+    CANAL[i].gpio_num = config->CANAL[i].gpio_num;
+    CANAL[i].ID = config->CANAL[i].ID;
+    CANAL[i].enable = config->CANAL[i].enable;
+    CANAL[i].ui_mean[0] = config->CANAL[i].ui_mean;
+    CANAL[i].ui_mean[1] = config->CANAL[i].ui_mean;
+  }
+  return;
+}
+
 extern "C" void app_main(void)
 {
-
   // esp_log_level_set(TAG, ESP_LOG_INFO);
   esp_log_level_set(TAG, ESP_LOG_ERROR);
+
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
   init_nvs();
-  // Guardar
-  //  ESP_ERROR_CHECK(guardar_completo_nvs(&config));
-  //  printf("Guardado!\n");
 
-  // Leer
-  mi_config_t config_leida;
-
-  ESP_ERROR_CHECK(leer_completo_nvs(&config_leida));
-  muestra_configuracion_nvs(&config_leida);
-  muestra_configuracion_nvs(&config); // muestra la configuración por defecto
+  if (GUARDAR_CONFIGURACION_NVS)
+  {
+    ESP_ERROR_CHECK(guardar_completo_nvs(&config_default));
+    printf("Guardado!\n");
+    inicia_variables_globales(&config_default);
+  }
+  else
+  {
+    mi_config_t config_leida;
+    ESP_ERROR_CHECK(leer_completo_nvs(&config_leida));
+    muestra_configuracion_nvs(&config_leida);
+    inicia_variables_globales(&config_leida);
+  }
 
   xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
 
@@ -596,16 +619,16 @@ void config_capture(void)
 
   ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf[0], &cap_timer[0]));
   ESP_ERROR_CHECK(mcpwm_new_capture_timer(&cap_conf[1], &cap_timer[1]));
-
-  for (int i = 0; i < N_CANALES; i++)
-  {
-    CANAL[i].gpio_num = config.CANAL[i].gpio_num;
-    CANAL[i].dpin = config.CANAL[i].dpin;
-    CANAL[i].cap_timer = config.CANAL[i].cap_timer;
-    CANAL[i].ID = config.CANAL[i].ID;
-    CANAL[i].code = config.CANAL[i].code;
-  }
-
+  /*
+    for (int i = 0; i < N_CANALES; i++)
+    {
+      CANAL[i].gpio_num = config.CANAL[i].gpio_num;
+      CANAL[i].dpin = config.CANAL[i].dpin;
+      CANAL[i].cap_timer = config.CANAL[i].cap_timer;
+      CANAL[i].ID = config.CANAL[i].ID;
+      CANAL[i].code = config.CANAL[i].code;
+    }
+  */
   mcpwm_capture_channel_config_t cap_ch_conf;
 
   cap_ch_conf.gpio_num = 0;
@@ -715,11 +738,12 @@ void config_timer(void)
 //------------------------------------------------------------------------------------------
 
 //------------------------------------------------------------------------------------------
+
+mcpwm_timer_handle_t h_timer = NULL;
 void config_mcpwm(void)
 {
   ESP_LOGI(TAG, "Configurando Timer");
 
-  mcpwm_timer_handle_t h_timer = NULL;
   mcpwm_timer_config_t c_timer;
 
   c_timer.group_id = 0;

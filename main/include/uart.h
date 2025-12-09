@@ -11,6 +11,8 @@ char *separa_comandos = ",";
 extern const char *TAG;
 extern data CANAL[];
 extern mcpwm_cap_channel_handle_t cap_chan[];
+extern bool _simula_;
+extern mcpwm_timer_handle_t h_timer;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -45,7 +47,7 @@ const char *COD[NCODIGOS] = {"START" /*1*/,
                              "CALIBRA" /*5*/,
                              "SAVE" /*6*/,
                              "CONFIG" /*7*/,
-                             "BEGIN" /*8*/,
+                             "SIMULA" /*8*/,
                              "LAUNCH" /*9*/,
                              "STATUS" /*10*/,
                              "CANAL" /*11*/};
@@ -58,6 +60,27 @@ func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, 
 bool fun1(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    for (int i = 0; i < 4; i++)
+    {
+        if (CANAL[i].enable)
+        {
+            // estos valores son para reiniciar las cuentas de cada canal
+            CANAL[i].f_error = false;
+            CANAL[i].cont_errores = 0;
+            CANAL[i].dir_flanco_actual = 0;
+            CANAL[i].dir_flanco_anterior = 0;
+            CANAL[i].t_anterior = 0;
+            CANAL[i].reinicia_variables();
+
+            // esto es para que vuelva a ingresar a la interrupcio
+            mcpwm_capture_channel_enable(cap_chan[i]);
+        }
+        else
+        {
+            mcpwm_capture_channel_disable(cap_chan[i]);
+        }
+    }
     return true;
 }
 
@@ -98,9 +121,22 @@ bool fun7(int n, char *str, ...)
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
 bool fun8(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    _simula_ = !_simula_;
+
+    if (_simula_)
+    {
+        ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
+    }
+    else
+    {
+        ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
+    }
+
     return true;
 }
 bool fun9(int n, char *str, ...)
@@ -138,20 +174,33 @@ bool fun11(int n, char *str, ...)
 
         if (valor >= 1 && valor <= 4)
         {
-            CANAL[valor - 1].enable = CANAL[valor - 1].enable ? false : true;
+            int i = valor - 1;
+
+            // CANAL[i].enable = CANAL[i].enable ? false : true;
+
             printf("CANAL:%d\tE:%s\tgpio:%d\tID:%d\tmedU:%u\tmedD:%u\n", valor,
-                   (CANAL[valor - 1].enable) ? "E" : "D",
-                   CANAL[valor - 1].gpio_num,
-                   CANAL[valor - 1].ID,
-                   (unsigned int)CANAL[valor - 1].ui_mean[0],
-                   (unsigned int)CANAL[valor - 1].ui_mean[1]);
-            if (CANAL[valor - 1].enable)
+                   (CANAL[i].enable) ? "E" : "D",
+                   CANAL[i].gpio_num,
+                   CANAL[i].ID,
+                   (unsigned int)CANAL[i].ui_mean[0],
+                   (unsigned int)CANAL[i].ui_mean[1]);
+
+            if (CANAL[i].enable)
             {
-                mcpwm_capture_channel_enable(cap_chan[valor - 1]);
+                // estos valores son para reiniciar las cuentas de cada canal
+                CANAL[i].f_error = false;
+                CANAL[i].cont_errores = 0;
+                CANAL[i].dir_flanco_actual = 0;
+                CANAL[i].dir_flanco_anterior = 0;
+                CANAL[i].t_anterior = 0;
+                CANAL[i].reinicia_variables();
+
+                // esto es para que vuelva a ingresar a la interrupcio
+                mcpwm_capture_channel_enable(cap_chan[i]);
             }
             else
             {
-                mcpwm_capture_channel_disable(cap_chan[valor - 1]);
+                mcpwm_capture_channel_disable(cap_chan[i]);
             }
         }
     }
