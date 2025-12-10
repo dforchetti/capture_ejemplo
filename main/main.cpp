@@ -84,7 +84,7 @@ struct CaptureEvent
 
 #define PWM_RESOLUTION_HZ 80000000 // 80 MHz
 #define DECIMACION 10000           // frec_reloj_filtro / CAPTURE_PRESCALER
-#define ACTUALIZA 1000             // frec_reloj_filtro / CAPTURE_PRESCALER
+#define ACTUALIZA 100              // frec_reloj_filtro / CAPTURE_PRESCALER
 
 int frec_reloj_filtro = 150000;      // frecuencia de reloj del filtro en Hz
 int periodo = 2 / frec_reloj_filtro; // periodo en us
@@ -173,6 +173,7 @@ void task1(void *parameter)
 
 extern "C" void app_main(void)
 {
+
   esp_task_wdt_deinit(); // funciona para deshabilitar el WDT del freertos
 
   init_nvs();
@@ -223,7 +224,7 @@ extern "C" void app_main(void)
 
   // capture channels
   //------------------------------------------------------------------------------------------
-  config_capture();
+  // config_capture();
 
   // Bucle principal
   //------------------------------------------------------------------------------------------
@@ -259,6 +260,7 @@ extern "C" void app_main(void)
       estado = !estado;
       printf("ESTADO...%d\n", estado);
 
+      /*
       if (estado)
       {
         mcpwm_capture_channel_enable(cap_chan[3]);
@@ -267,6 +269,7 @@ extern "C" void app_main(void)
       {
         mcpwm_capture_channel_disable(cap_chan[3]);
       }
+      */
     }
     /*
         estado = !estado;
@@ -495,21 +498,12 @@ void config_GPIO(void)
   io_conf.mode = GPIO_MODE_OUTPUT;
   io_conf.intr_type = GPIO_INTR_DISABLE;
 
-  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_1;
-  ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_1, 0));
-
-  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_2;
-  ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_2, 0));
-
-  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_3;
-  ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_3, 0));
-
-  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_4;
-  ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_4, 0));
+  for (int i = 0; i < N_CANALES; i++)
+  {
+    io_conf.pin_bit_mask = 1ULL << CANAL[i].gpio_num;
+    ESP_ERROR_CHECK(gpio_config(&io_conf));
+    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CANAL[i].gpio_num, 0));
+  }
 
   io_conf.pin_bit_mask = 1ULL << PIN_DE_SALIDA_SENAL;
   ESP_ERROR_CHECK(gpio_config(&io_conf));
@@ -648,12 +642,14 @@ void config_timer(void)
 
 //------------------------------------------------------------------------------------------
 
-mcpwm_timer_handle_t h_timer = NULL;
+// mcpwm_timer_handle_t h_timer = NULL;
+
 void config_mcpwm(void)
 {
   ESP_LOGI(TAG, "Configurando Timer");
 
   mcpwm_timer_config_t c_timer;
+  mcpwm_timer_handle_t h_timer = NULL;
 
   c_timer.group_id = 0;
   c_timer.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT;

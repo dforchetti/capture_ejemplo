@@ -57,6 +57,9 @@ func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, 
 // Definir tipo para puntero a función con argumentos variables
 
 // Funciones de ejemplo con argumentos variables
+
+//"START"
+//--------------------------------------------------------------------------------
 bool fun1(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
@@ -74,6 +77,7 @@ bool fun1(int n, char *str, ...)
             CANAL[i].reinicia_variables();
 
             // esto es para que vuelva a ingresar a la interrupcio
+            printf("activando canal %d\n", i);
             mcpwm_capture_channel_enable(cap_chan[i]);
         }
         else
@@ -84,12 +88,16 @@ bool fun1(int n, char *str, ...)
     return true;
 }
 
+//"STOP"
+//--------------------------------------------------------------------------------
 bool fun2(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
 
+//"RESTART"
+//--------------------------------------------------------------------------------
 bool fun3(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
@@ -101,27 +109,41 @@ bool fun3(int n, char *str, ...)
     esp_restart();
     return true;
 }
+
+//"RESET"
+//--------------------------------------------------------------------------------
 bool fun4(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
+//"CALIBRA"
+//--------------------------------------------------------------------------------
 bool fun5(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
+//"SAVE"
+//--------------------------------------------------------------------------------
 bool fun6(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
+//"CONFIG"
+//--------------------------------------------------------------------------------
 bool fun7(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
 
+//"SIMULA"
+//--------------------------------------------------------------------------------
 bool fun8(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
@@ -130,26 +152,37 @@ bool fun8(int n, char *str, ...)
 
     if (_simula_)
     {
-        ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
+        printf("Modo SIMULACION ACTIVADO\n");
+        // ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
     }
     else
     {
-        ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
+        printf("Modo SIMULACION DESACTIVADO\n");
+        // ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
     }
 
     return true;
 }
+
+//"LAUNCH"
+//--------------------------------------------------------------------------------
 bool fun9(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
+//"STATUS"
+//--------------------------------------------------------------------------------
 bool fun10(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
     return true;
 }
+
 // CANAL
+//--------------------------------------------------------------------------------
+
 bool fun11(int n, char *str, ...)
 {
 
@@ -251,7 +284,7 @@ void configura_uart(void)
 static void uart_event_task(void *pvParameters)
 {
     uart_event_t event;
-    size_t buffered_size;
+    // size_t buffered_size;
     uint8_t *dtmp = (uint8_t *)malloc(RD_BUF_SIZE);
     bool comando_reconocido = false;
     for (;;)

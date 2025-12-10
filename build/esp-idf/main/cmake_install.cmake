@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/daniel/Documents/Radares/code/IDF/capture_ejemplo/main
+# Install script for directory: C:/Users/daniel/Documents/MEGA/capture_ejemplo/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
