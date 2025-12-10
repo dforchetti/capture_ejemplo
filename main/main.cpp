@@ -309,6 +309,13 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 
   gpio_set_level((gpio_num_t)dato->dpin, 1);
 
+  // es un segundo control por las dudas
+  if (!dato->enable)
+  {
+    gpio_set_level((gpio_num_t)dato->dpin, 0);
+    return true;
+  }
+
   // entrando a zona crítica
   portENTER_CRITICAL_ISR(&spinlock_isr);
   edge = edata->cap_edge;
