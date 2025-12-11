@@ -146,28 +146,10 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 //
 void task1(void *parameter)
 {
-  static int64_t t_anterior, t_actual;
-
-  t_anterior = esp_timer_get_time();
-  t_actual = t_anterior;
-
-  config_GPIO();
 
   while (1)
   {
-    t_actual = esp_timer_get_time();
-
-    //    if (t_actual - t_anterior >= 60-30*debug_state) {
-    //    if (t_actual - t_anterior >= 75-32*debug_state) {
-    if (t_actual - t_anterior >= 750 - 320 * debug_state)
-    {
-      // if (t_actual - t_anterior >= 6000-3000*debug_state) {
-      t_anterior = t_actual;
-      debug_state = !debug_state;
-      // gpio_set_level(DEBUG_PIN, debug_state);
-      //  gpio_set_level(PIN_DE_SALIDA_SENAL, debug_state);
-    }
-    // gpio_set_level(DEBUG_PIN, 1);
+    vTaskDelay(100 / portTICK_PERIOD_MS);
   }
 }
 
@@ -197,18 +179,9 @@ extern "C" void app_main(void)
   xQueue = xQueueCreate(200, sizeof(struct CaptureEvent)); // cola para hasta 10 entero
 
   configura_uart();
-  // Create a task to handler UART event from ISR
+
   xTaskCreate(uart_event_task, "uart_event_task", 10000, NULL, 12, NULL);
-
-  xTaskCreate(task1,         // Función de la tarea
-              "Task simula", // Nombre de la tarea
-              10000,         // Tamaño del stack
-              NULL,          // Parámetros
-              1,             // Prioridad
-              NULL           // Handle de la tarea
-  );
-
-  // debug();
+  xTaskCreate(task1, "Task simula", 10000, NULL, 1, NULL);
 
   // config GPIO
   //------------------------------------------------------------------------------------------
@@ -224,7 +197,7 @@ extern "C" void app_main(void)
 
   // capture channels
   //------------------------------------------------------------------------------------------
-  // config_capture();
+  config_capture();
 
   // Bucle principal
   //------------------------------------------------------------------------------------------
@@ -644,74 +617,64 @@ void config_timer(void)
 
 // mcpwm_timer_handle_t h_timer = NULL;
 
+mcpwm_timer_handle_t h_timer = NULL;
+mcpwm_cmpr_handle_t h_comparator = NULL;
+
 void config_mcpwm(void)
 {
-  ESP_LOGI(TAG, "Configurando Timer");
 
-  mcpwm_timer_config_t c_timer;
-  mcpwm_timer_handle_t h_timer = NULL;
+  mcpwm_timer_config_t timer_config = {};
+  timer_config.group_id = 0;
+  timer_config.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT;
+  timer_config.resolution_hz = PWM_RESOLUTION_HZ;
+  timer_config.count_mode = MCPWM_TIMER_COUNT_MODE_UP;
+  timer_config.intr_priority = 0;
 
-  c_timer.group_id = 0;
-  c_timer.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT;
-  c_timer.resolution_hz = PWM_RESOLUTION_HZ; // 100MHz, 0.1us per tick
-  c_timer.intr_priority = 0;
-  c_timer.count_mode = MCPWM_TIMER_COUNT_MODE_UP;
+  timer_config.period_ticks = timer_config.resolution_hz / frec_reloj_filtro; // periodo en ticks
 
-  c_timer.period_ticks = c_timer.resolution_hz / frec_reloj_filtro; // periodo en ticks
+  int comparacion = timer_config.period_ticks / 2;
 
-  int comparacion = c_timer.period_ticks / 2;
+  ESP_ERROR_CHECK(mcpwm_new_timer(&timer_config, &h_timer));
 
-  ESP_ERROR_CHECK(mcpwm_new_timer(&c_timer, &h_timer));
+  // operador
+  mcpwm_oper_handle_t oper;
+  mcpwm_operator_config_t operator_config = {.group_id = 0};
+  mcpwm_new_operator(&operator_config, &oper);
+  mcpwm_operator_connect_timer(oper, h_timer);
 
-  mcpwm_oper_handle_t h_operator = NULL;
-  mcpwm_operator_config_t c_operator;
-  c_operator.group_id = 0;
-  c_operator.intr_priority = 0;
+  // Comparador
+  mcpwm_comparator_config_t comparator_config = {};
+  comparator_config.flags.update_cmp_on_tez = true;
+  mcpwm_new_comparator(oper, &comparator_config, &h_comparator);
 
-  ESP_LOGI(TAG, "Configurando Operador");
-  ESP_ERROR_CHECK(mcpwm_new_operator(&c_operator, &h_operator));
+  // Generador
+  mcpwm_gen_handle_t gen;
+  mcpwm_generator_config_t gen_config = {
+      .gen_gpio_num = PIN_DE_SALIDA_SENAL,
+      .flags =
+          {
+              .invert_pwm = false,
+              .io_loop_back = false,
+              .io_od_mode = false,
+              .pull_up = true,
+              .pull_down = false}};
+  mcpwm_new_generator(oper, &gen_config, &gen);
 
-  ESP_LOGI(TAG, "Connect timer and operator");
-  ESP_ERROR_CHECK(mcpwm_operator_connect_timer(h_operator, h_timer));
+  mcpwm_comparator_set_compare_value(h_comparator, comparacion);
+  // Configurar acciones
+  mcpwm_generator_set_action_on_timer_event(gen,
+                                            MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
+                                                                         MCPWM_TIMER_EVENT_EMPTY,
+                                                                         MCPWM_GEN_ACTION_HIGH));
 
-  ESP_LOGI(TAG, "Configurando Comparador");
+  mcpwm_generator_set_action_on_compare_event(gen,
+                                              MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
+                                                                             h_comparator,
+                                                                             MCPWM_GEN_ACTION_LOW));
 
-  mcpwm_cmpr_handle_t h_comparator = NULL;
-  mcpwm_comparator_config_t c_comparator;
-  c_comparator.intr_priority = 0;
-  // c_comparator.flags.update_cmp_on_tep = 1;
-  c_comparator.flags.update_cmp_on_tez = true;
-
-  ESP_ERROR_CHECK(
-      mcpwm_new_comparator(h_operator, &c_comparator, &h_comparator));
-
-  ESP_LOGI(TAG, "Configurando Generador");
-
-  mcpwm_gen_handle_t h_generator = NULL;
-  mcpwm_generator_config_t c_generator;
-  c_generator.gen_gpio_num = PIN_DE_SALIDA_SENAL; // GPIO_NUM_1;
-  c_generator.flags.pull_up = true;
-
-  // c_generator.flags.invert_pwm = 1;
-
-  ESP_ERROR_CHECK(mcpwm_new_generator(h_operator, &c_generator, &h_generator));
-
-  ESP_ERROR_CHECK(
-      mcpwm_comparator_set_compare_value(h_comparator, comparacion));
-
-  ESP_ERROR_CHECK(mcpwm_generator_set_action_on_timer_event(
-      h_generator, MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
-                                                MCPWM_TIMER_EVENT_EMPTY,
-                                                MCPWM_GEN_ACTION_HIGH)));
-  ESP_ERROR_CHECK(mcpwm_generator_set_action_on_compare_event(
-      h_generator,
-      MCPWM_GEN_COMPARE_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP, h_comparator,
-                                     MCPWM_GEN_ACTION_LOW)));
-
-  ESP_LOGI(TAG, "habilitando timers PWM");
-
-  ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
-  ESP_ERROR_CHECK(mcpwm_timer_start_stop(h_timer, MCPWM_TIMER_START_NO_STOP));
+  // Iniciar
+  mcpwm_timer_enable(h_timer);
+  mcpwm_timer_start_stop(h_timer, MCPWM_TIMER_START_NO_STOP);
 
   // mcpwm_timer_disable(timer_pwm);
   //  si lo quiero borrar
