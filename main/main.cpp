@@ -40,8 +40,8 @@ enum modo
 
 typedef struct
 {
-  int gpio_num;
-  int dpin;
+  gpio_num_t gpio_num;
+  gpio_num_t dpin;
   int cap_timer;
   int ID;
   int code;
@@ -75,10 +75,13 @@ struct CaptureEvent
 //------------------------------------------------------------------------------------------
 
 #define PIN_DE_SALIDA_SENAL GPIO_NUM_1
+#define PIN_DE_DEBUG GPIO_NUM_3
+
 #define DEBUG_PIN_1 GPIO_NUM_10
 #define DEBUG_PIN_2 GPIO_NUM_11
 #define DEBUG_PIN_3 GPIO_NUM_12
 #define DEBUG_PIN_4 GPIO_NUM_13
+
 #define N_CANALES 4
 #define CAPTURE_PRESCALER 20;
 
@@ -104,14 +107,15 @@ static bool debug_state = false;
 volatile bool f_envioExitoso = true;
 volatile bool f_calibra_media = false;
 bool f_arraque = false;
+volatile int cont_default = 0;
 
 mi_config_t config_default = {
     .CANAL = {
-        {.gpio_num = 2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 0},
-        {.gpio_num = 4, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 0},
-        {.gpio_num = 16, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 0},
-        {.gpio_num = 17, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 0}},
-    .modo_inicial = APAGADO,
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 0},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 0},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 0},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 0}},
+    .modo_inicial = ENCENDIDO,
     .frec_emula = 150000,
     .contador = 0};
 
@@ -231,7 +235,7 @@ extern "C" void app_main(void)
       tanterior = tactual;
 
       estado = !estado;
-      printf("ESTADO...%d\n", estado);
+      printf("ESTADO...%d (%d)\n", estado, cont_default);
 
       /*
       if (estado)
@@ -280,6 +284,8 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 
   static int cont = 0;
   static CaptureEvent event;
+
+  cont_default++;
 
   data *dato = (data *)user_data; // dato apunta para cada interrupción a su estructura de datos CANAL[x]
 
@@ -481,6 +487,26 @@ void config_GPIO(void)
   io_conf.pin_bit_mask = 1ULL << PIN_DE_SALIDA_SENAL;
   ESP_ERROR_CHECK(gpio_config(&io_conf));
   ESP_ERROR_CHECK(gpio_set_level(PIN_DE_SALIDA_SENAL, 0));
+
+  io_conf.pin_bit_mask = 1ULL << PIN_DE_DEBUG;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(PIN_DE_DEBUG, 0));
+
+  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_10;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_10, 0));
+
+  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_11;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_11, 0));
+
+  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_12;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_12, 0));
+
+  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_13;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_13, 0));
 }
 //------------------------------------------------------------------------------------------
 

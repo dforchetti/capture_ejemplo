@@ -33,12 +33,12 @@ public:
   //-----------------------------------------------------------------------------------
   // config
   //-----------------------------------------------------------------------------------
-  int gpio_num;  // el GPIO asociado a la captura
-  int dpin;      // el pin asociado al debug del GPIO
-  int cap_timer; // el timer asociado a la medicion de tiempo 0/1
-  int ID;        // un numero identificatorio 1,2,3,..etc
-  int code;      // un codigo identificatorio cualqueira 111,222, etc
-  bool enable;   // canal habilitado/deshabilitado
+  gpio_num_t gpio_num; // el GPIO asociado a la captura
+  gpio_num_t dpin;     // el pin asociado al debug del GPIO
+  int cap_timer;       // el timer asociado a la medicion de tiempo 0/1
+  int ID;              // un numero identificatorio 1,2,3,..etc
+  int code;            // un codigo identificatorio cualqueira 111,222, etc
+  bool enable;         // canal habilitado/deshabilitado
 
   //-----------------------------------------------------------------------------------
   // trigger el indice 2 obedece a estadoUP, estado DOWN
@@ -93,8 +93,8 @@ data::~data()
 }
 void data::reset(void)
 {
-  this->gpio_num = 0;
-  this->dpin = 0;
+  this->gpio_num = gpio_num_t(0);
+  this->dpin = gpio_num_t(0);
   this->cap_timer = 0;
   this->ID = 0;
   this->code = 0;
