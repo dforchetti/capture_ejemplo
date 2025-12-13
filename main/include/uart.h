@@ -43,8 +43,8 @@ bool fun10(int n, char *str, ...);
 bool fun11(int n, char *str, ...);
 bool fun12(int n, char *str, ...);
 
-const char *COD[NCODIGOS] = {"START" /*1*/,
-                             "STOP" /*2*/,
+const char *COD[NCODIGOS] = {"INICIA" /*1*/,
+                             "PARA" /*2*/,
                              "RESTART" /*3*/,
                              "RESET" /*4*/,
                              "CALIBRA" /*5*/,
@@ -97,6 +97,20 @@ bool fun1(int n, char *str, ...)
 bool fun2(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    for (int i = 0; i < 4; i++)
+    {
+        // estos valores son para reiniciar las cuentas de cada canal
+        CANAL[i].f_error = false;
+        CANAL[i].cont_errores = 0;
+        CANAL[i].dir_flanco_actual = 0;
+        CANAL[i].dir_flanco_anterior = 0;
+        CANAL[i].t_anterior = 0;
+        CANAL[i].reinicia_variables();
+
+        // desactiva la captura de todos los canales
+        mcpwm_capture_channel_disable(cap_chan[i]);
+    }
     return true;
 }
 
