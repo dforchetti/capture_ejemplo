@@ -92,6 +92,7 @@ const int PWM_RESOLUTION_HZ = 80000000; // 80 MHz
 uint32_t frec_reloj_filtro = 150000; // frecuencia de reloj del filtro en Hz
 uint32_t comp_ctte = 533;            // PWM_RESOLUTION_HZ / frec_reloj_filtro;
 int32_t duty = 50;                   // duty cycle en %
+uint32_t comparacion = 0;
 
 modo estado_actual = ENCENDIDO;
 
@@ -232,17 +233,6 @@ extern "C" void app_main(void)
 
       estado = !estado;
       printf("ESTADO...%d (%d)\n", estado, cont_default);
-
-      /*
-      if (estado)
-      {
-        mcpwm_capture_channel_enable(cap_chan[3]);
-      }
-      else
-      {
-        mcpwm_capture_channel_disable(cap_chan[3]);
-      }
-      */
     }
     /*
         estado = !estado;
@@ -683,7 +673,7 @@ void config_mcpwm(void)
 
   // uint32_t comparacion = PWM_RESOLUTION_HZ * duty / 100 / frec_reloj_filtro;
 
-  uint32_t comparacion = (comp_ctte * duty) / 100;
+  comparacion = (comp_ctte * duty) / 100;
 
   mcpwm_comparator_set_compare_value(h_comparator, comparacion);
   // Configurar acciones

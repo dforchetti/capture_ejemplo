@@ -18,6 +18,8 @@ extern int32_t duty;
 extern uint32_t frec_reloj_filtro; // frecuencia de reloj del filtro en Hz
 extern uint32_t comp_ctte;         // PWM_RESOLUTION_HZ / frec_reloj_filtro;
 
+extern uint32_t comparacion;
+
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
 static QueueHandle_t uart0_queue;
@@ -158,13 +160,13 @@ bool fun8(int n, char *str, ...)
 
     if (_simula_)
     {
+        mcpwm_comparator_set_compare_value(h_comparator, comparacion);
         printf("Modo SIMULACION ACTIVADO\n");
-        ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
     }
     else
     {
+        mcpwm_comparator_set_compare_value(h_comparator, 0);
         printf("Modo SIMULACION DESACTIVADO\n");
-        ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
     }
 
     return true;
@@ -296,7 +298,8 @@ bool fun12(int n, char *str, ...)
 
     if (dato_valido)
     {
-        uint32_t comparacion = (uint32_t)((comp_ctte * duty) / 100);
+        comparacion = (uint32_t)((comp_ctte * duty) / 100);
+
         if (duty == 100)
         {
             comparacion = comp_ctte;
