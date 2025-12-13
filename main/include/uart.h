@@ -12,9 +12,12 @@ extern const char *TAG;
 extern data CANAL[];
 extern mcpwm_cap_channel_handle_t cap_chan[];
 extern bool _simula_;
+extern mcpwm_timer_handle_t h_timer;
 extern mcpwm_cmpr_handle_t h_comparator;
 extern mcpwm_timer_config_t timer_config;
 extern int32_t duty;
+extern uint32_t frec_reloj_filtro;
+extern const int PWM_RESOLUTION_HZ;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -28,7 +31,7 @@ static QueueHandle_t uart0_queue;
 
 typedef bool (*func_varargs_t)(int n, char *str, ...);
 
-#define NCODIGOS 12
+#define NCODIGOS 13
 
 bool fun1(int n, char *str, ...);
 bool fun2(int n, char *str, ...);
@@ -42,21 +45,23 @@ bool fun9(int n, char *str, ...);
 bool fun10(int n, char *str, ...);
 bool fun11(int n, char *str, ...);
 bool fun12(int n, char *str, ...);
+bool fun13(int n, char *str, ...);
 
-const char *COD[NCODIGOS] = {"INICIA" /*1*/,
-                             "PARA" /*2*/,
-                             "RESTART" /*3*/,
-                             "RESET" /*4*/,
-                             "CALIBRA" /*5*/,
-                             "SAVE" /*6*/,
-                             "CONFIG" /*7*/,
-                             "SIMULA" /*8*/,
-                             "LAUNCH" /*9*/,
-                             "STATUS" /*10*/,
-                             "CANAL" /*11*/,
-                             "DUTY" /*12*/};
+const char *COD[NCODIGOS] = {"INICIA " /*1*/,
+                             "PARA " /*2*/,
+                             "RESTART " /*3*/,
+                             "RESET " /*4*/,
+                             "CALIBRA " /*5*/,
+                             "SAVE " /*6*/,
+                             "CONFIG " /*7*/,
+                             "SIMULA " /*8*/,
+                             "LAUNCH " /*9*/,
+                             "STATUS " /*10*/,
+                             "CANAL " /*11*/,
+                             "DUTY " /*12*/,
+                             "FREC " /*13*/};
 
-func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11, fun12};
+func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11, fun12, fun13};
 
 // Definir tipo para puntero a función con argumentos variables
 
@@ -325,6 +330,37 @@ bool fun12(int n, char *str, ...)
     else
     {
         printf("no cambia duty \n");
+    }
+
+    return true;
+}
+
+bool fun13(int n, char *str, ...)
+{
+    bool dato_valido = false;
+    uint32_t frec = 0;
+
+    printf("%s\n", str);
+
+    frec = atoi(str);
+
+    if (frec >= 50 && frec <= 300) // en khz
+    {
+        frec_reloj_filtro = frec * 1000;
+        timer_config.period_ticks = PWM_RESOLUTION_HZ / frec_reloj_filtro; // periodo en ticks
+        mcpwm_timer_set_period(h_timer, timer_config.period_ticks);
+        mcpwm_comparator_set_compare_value(h_comparator, (timer_config.period_ticks * duty) / 100);
+
+        dato_valido = true;
+    }
+
+    if (dato_valido)
+    {
+        printf("frecuencia de reloj del filtro actual: %ld kHz\n", frec_reloj_filtro/1000);
+    }
+    else
+    {
+        printf("frecuencia de reloj del filtro fuera de rango (50-300) kHz \n");
     }
 
     return true;
