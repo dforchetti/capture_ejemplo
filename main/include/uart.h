@@ -13,6 +13,10 @@ extern data CANAL[];
 extern mcpwm_cap_channel_handle_t cap_chan[];
 extern bool _simula_;
 extern mcpwm_timer_handle_t h_timer;
+extern mcpwm_cmpr_handle_t h_comparator;
+extern int32_t duty;
+extern uint32_t frec_reloj_filtro; // frecuencia de reloj del filtro en Hz
+extern uint32_t comp_ctte;         // PWM_RESOLUTION_HZ / frec_reloj_filtro;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -26,7 +30,7 @@ static QueueHandle_t uart0_queue;
 
 typedef bool (*func_varargs_t)(int n, char *str, ...);
 
-#define NCODIGOS 11
+#define NCODIGOS 12
 
 bool fun1(int n, char *str, ...);
 bool fun2(int n, char *str, ...);
@@ -39,6 +43,7 @@ bool fun8(int n, char *str, ...);
 bool fun9(int n, char *str, ...);
 bool fun10(int n, char *str, ...);
 bool fun11(int n, char *str, ...);
+bool fun12(int n, char *str, ...);
 
 const char *COD[NCODIGOS] = {"START" /*1*/,
                              "STOP" /*2*/,
@@ -50,9 +55,10 @@ const char *COD[NCODIGOS] = {"START" /*1*/,
                              "SIMULA" /*8*/,
                              "LAUNCH" /*9*/,
                              "STATUS" /*10*/,
-                             "CANAL" /*11*/};
+                             "CANAL" /*11*/,
+                             "DUTY" /*12*/};
 
-func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11};
+func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11, fun12};
 
 // Definir tipo para puntero a función con argumentos variables
 
@@ -153,12 +159,12 @@ bool fun8(int n, char *str, ...)
     if (_simula_)
     {
         printf("Modo SIMULACION ACTIVADO\n");
-        // ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
+        ESP_ERROR_CHECK(mcpwm_timer_enable(h_timer));
     }
     else
     {
         printf("Modo SIMULACION DESACTIVADO\n");
-        // ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
+        ESP_ERROR_CHECK(mcpwm_timer_disable(h_timer));
     }
 
     return true;
@@ -209,7 +215,7 @@ bool fun11(int n, char *str, ...)
         {
             int i = valor - 1;
 
-            // CANAL[i].enable = CANAL[i].enable ? false : true;
+            CANAL[i].enable = CANAL[i].enable ? false : true; // hace toggle del enable
 
             printf("CANAL:%d\tE:%s\tgpio:%d\tID:%d\tmedU:%u\tmedD:%u\n", valor,
                    (CANAL[i].enable) ? "E" : "D",
@@ -255,6 +261,60 @@ bool fun11(int n, char *str, ...)
 
     //    printf("Codigo de activacion recibido: %s\n", COD[n]);
     // ptr = strstr();
+
+    return true;
+}
+
+bool fun12(int n, char *str, ...)
+{
+    bool dato_valido = false;
+
+    printf("%s\n", str);
+
+    if (strstr(str, "+") != NULL)
+    {
+        duty = duty + 10;
+
+        if (duty >= 100)
+        {
+            duty = 100;
+        }
+
+        dato_valido = true;
+    }
+    else if (strstr(str, "-") != NULL)
+    {
+        duty = duty - 10;
+
+        if (duty <= 0)
+        {
+            duty = 0;
+        }
+
+        dato_valido = true;
+    }
+
+    if (dato_valido)
+    {
+        uint32_t comparacion = (uint32_t)((comp_ctte * duty) / 100);
+        if (duty == 100)
+        {
+            comparacion = comp_ctte;
+        }
+        else if (duty == 0)
+        {
+            comparacion = 0;
+        }
+
+        mcpwm_comparator_set_compare_value(h_comparator, comparacion);
+
+        printf("duty actual: %ld %%\n", duty);
+        // printf("comparacion en ticks:%lu \n", comparacion);
+    }
+    else
+    {
+        printf("no cambia duty \n");
+    }
 
     return true;
 }

@@ -85,12 +85,13 @@ struct CaptureEvent
 #define N_CANALES 4
 #define CAPTURE_PRESCALER 20;
 
-#define PWM_RESOLUTION_HZ 80000000 // 80 MHz
-#define DECIMACION 10000           // frec_reloj_filtro / CAPTURE_PRESCALER
-#define ACTUALIZA 100              // frec_reloj_filtro / CAPTURE_PRESCALER
+const int PWM_RESOLUTION_HZ = 80000000; // 80 MHz
+#define DECIMACION 10000                // frec_reloj_filtro / CAPTURE_PRESCALER
+#define ACTUALIZA 100                   // frec_reloj_filtro / CAPTURE_PRESCALER
 
-int frec_reloj_filtro = 150000;      // frecuencia de reloj del filtro en Hz
-int periodo = 2 / frec_reloj_filtro; // periodo en us
+uint32_t frec_reloj_filtro = 150000; // frecuencia de reloj del filtro en Hz
+uint32_t comp_ctte = 533;            // PWM_RESOLUTION_HZ / frec_reloj_filtro;
+int32_t duty = 50;                   // duty cycle en %
 
 modo estado_actual = ENCENDIDO;
 
@@ -212,11 +213,6 @@ extern "C" void app_main(void)
   long tanterior = esp_timer_get_time();
   long tactual;
 
-  /*printf("ACA...\n");
-  while (1)
-  {
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-  }*/
   while (1) //{vTaskDelay(10);}
   {
     if (xQueueReceiveFromISR(xQueue, &dato, 0))
@@ -656,9 +652,7 @@ void config_mcpwm(void)
   timer_config.count_mode = MCPWM_TIMER_COUNT_MODE_UP;
   timer_config.intr_priority = 0;
 
-  timer_config.period_ticks = timer_config.resolution_hz / frec_reloj_filtro; // periodo en ticks
-
-  int comparacion = timer_config.period_ticks / 2;
+  timer_config.period_ticks = 533; // PWM_RESOLUTION_HZ / frec_reloj_filtro; // periodo en ticks
 
   ESP_ERROR_CHECK(mcpwm_new_timer(&timer_config, &h_timer));
 
@@ -684,7 +678,12 @@ void config_mcpwm(void)
               .io_od_mode = false,
               .pull_up = true,
               .pull_down = false}};
+
   mcpwm_new_generator(oper, &gen_config, &gen);
+
+  // uint32_t comparacion = PWM_RESOLUTION_HZ * duty / 100 / frec_reloj_filtro;
+
+  uint32_t comparacion = (comp_ctte * duty) / 100;
 
   mcpwm_comparator_set_compare_value(h_comparator, comparacion);
   // Configurar acciones
