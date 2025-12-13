@@ -90,9 +90,7 @@ const int PWM_RESOLUTION_HZ = 80000000; // 80 MHz
 #define ACTUALIZA 100                   // frec_reloj_filtro / CAPTURE_PRESCALER
 
 uint32_t frec_reloj_filtro = 150000; // frecuencia de reloj del filtro en Hz
-uint32_t comp_ctte = 533;            // PWM_RESOLUTION_HZ / frec_reloj_filtro;
 int32_t duty = 50;                   // duty cycle en %
-uint32_t comparacion = 0;
 
 modo estado_actual = ENCENDIDO;
 
@@ -631,18 +629,18 @@ void config_timer(void)
 
 mcpwm_timer_handle_t h_timer = NULL;
 mcpwm_cmpr_handle_t h_comparator = NULL;
+mcpwm_timer_config_t timer_config = {};
 
 void config_mcpwm(void)
 {
 
-  mcpwm_timer_config_t timer_config = {};
   timer_config.group_id = 0;
   timer_config.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT;
   timer_config.resolution_hz = PWM_RESOLUTION_HZ;
   timer_config.count_mode = MCPWM_TIMER_COUNT_MODE_UP;
   timer_config.intr_priority = 0;
 
-  timer_config.period_ticks = 533; // PWM_RESOLUTION_HZ / frec_reloj_filtro; // periodo en ticks
+  timer_config.period_ticks = PWM_RESOLUTION_HZ / frec_reloj_filtro; // periodo en ticks
 
   ESP_ERROR_CHECK(mcpwm_new_timer(&timer_config, &h_timer));
 
@@ -671,11 +669,7 @@ void config_mcpwm(void)
 
   mcpwm_new_generator(oper, &gen_config, &gen);
 
-  // uint32_t comparacion = PWM_RESOLUTION_HZ * duty / 100 / frec_reloj_filtro;
-
-  comparacion = (comp_ctte * duty) / 100;
-
-  mcpwm_comparator_set_compare_value(h_comparator, comparacion);
+  mcpwm_comparator_set_compare_value(h_comparator, (timer_config.period_ticks * duty) / 100);
   // Configurar acciones
   mcpwm_generator_set_action_on_timer_event(gen,
                                             MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,

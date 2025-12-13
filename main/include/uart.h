@@ -12,13 +12,9 @@ extern const char *TAG;
 extern data CANAL[];
 extern mcpwm_cap_channel_handle_t cap_chan[];
 extern bool _simula_;
-extern mcpwm_timer_handle_t h_timer;
 extern mcpwm_cmpr_handle_t h_comparator;
+extern mcpwm_timer_config_t timer_config;
 extern int32_t duty;
-extern uint32_t frec_reloj_filtro; // frecuencia de reloj del filtro en Hz
-extern uint32_t comp_ctte;         // PWM_RESOLUTION_HZ / frec_reloj_filtro;
-
-extern uint32_t comparacion;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -160,7 +156,7 @@ bool fun8(int n, char *str, ...)
 
     if (_simula_)
     {
-        mcpwm_comparator_set_compare_value(h_comparator, comparacion);
+        mcpwm_comparator_set_compare_value(h_comparator, (timer_config.period_ticks * duty) / 100);
         printf("Modo SIMULACION ACTIVADO\n");
     }
     else
@@ -298,21 +294,19 @@ bool fun12(int n, char *str, ...)
 
     if (dato_valido)
     {
-        comparacion = (uint32_t)((comp_ctte * duty) / 100);
 
         if (duty == 100)
         {
-            comparacion = comp_ctte;
+            duty = 100;
         }
         else if (duty == 0)
         {
-            comparacion = 0;
+            duty = 0;
         }
 
-        mcpwm_comparator_set_compare_value(h_comparator, comparacion);
+        mcpwm_comparator_set_compare_value(h_comparator, timer_config.period_ticks * duty / 100);
 
         printf("duty actual: %ld %%\n", duty);
-        // printf("comparacion en ticks:%lu \n", comparacion);
     }
     else
     {

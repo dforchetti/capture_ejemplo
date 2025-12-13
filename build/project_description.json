@@ -1,7 +1,7 @@
 {
     "version":            "1.1",
     "project_name":       "capture_ejemplo",
-    "project_version":    "8c17278-dirty",
+    "project_version":    "df810ae-dirty",
     "project_path":       "C:/Users/daniel/Documents/MEGA/capture_ejemplo",
     "idf_path":           "C:/Espressif/frameworks/esp-idf-v5.3.1",
     "build_dir":          "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build",
