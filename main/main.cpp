@@ -1,4 +1,5 @@
-
+//  en el cmd
+// python -m esptool --chip esp32-s3 --port COM10 erase_flash
 #include <stdio.h>
 #include "sdkconfig.h"
 #include "driver/gpio.h"
@@ -46,7 +47,9 @@ typedef struct
   int ID;
   int code;
   bool enable;
-  int ui_mean;
+  int prescaler;
+  uint32_t ui_mean;
+  uint32_t delta_max;
 } canal_config;
 
 typedef struct
@@ -83,7 +86,7 @@ struct CaptureEvent
 #define DEBUG_PIN_4 GPIO_NUM_13
 
 #define N_CANALES 4
-#define CAPTURE_PRESCALER 20;
+#define CAPTURE_PRESCALER 1
 
 const int PWM_RESOLUTION_HZ = 80000000; // 80 MHz
 #define DECIMACION 10000                // frec_reloj_filtro / CAPTURE_PRESCALER
@@ -99,22 +102,21 @@ const char *DATOS = "DATA";
 
 mcpwm_cap_channel_handle_t cap_chan[4] = {NULL, NULL, NULL, NULL};
 bool _simula_ = true;
+bool f_calibra = false;
 
 data CANAL[N_CANALES];
 
 bool led_state = false;
-static bool debug_state = false;
 volatile bool f_envioExitoso = true;
-volatile bool f_calibra_media = false;
 bool f_arraque = false;
 volatile int cont_default = 0;
 
 mi_config_t config_default = {
     .CANAL = {
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .ui_mean = 0},
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .ui_mean = 0},
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .ui_mean = 0},
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .ui_mean = 0}},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
+        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000}},
     .modo_inicial = ENCENDIDO,
     .frec_emula = 150000,
     .contador = 0};
@@ -150,10 +152,22 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 //
 void task1(void *parameter)
 {
+  long tactual;
+  long tanterior = esp_timer_get_time();
+  bool estado = false;
 
   while (1)
   {
-    vTaskDelay(100 / portTICK_PERIOD_MS);
+
+    tactual = esp_timer_get_time();
+
+    if (tactual - tanterior >= (1000000) * duty / 100)
+    {
+      tanterior = tactual;
+      estado = !estado;
+      gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
+      // printf("TASK1...%d\n", estado);
+    }
   }
 }
 
@@ -197,7 +211,7 @@ extern "C" void app_main(void)
 
   // config PWM
   //------------------------------------------------------------------------------------------
-  config_mcpwm();
+  // config_mcpwm();
 
   // capture channels
   //------------------------------------------------------------------------------------------
@@ -228,10 +242,73 @@ extern "C" void app_main(void)
     if (tactual - tanterior >= 1000000)
     {
       tanterior = tactual;
-
       estado = !estado;
-      printf("ESTADO...%d (%d)\n", estado, cont_default);
+
+      if (!fcalibra)
+      {
+
+        //"\033[0;" COLOR "m"
+        printf(">(%d/%d) (%d/%d) (%d/%d) (%d/%d)\n",
+               CANAL[0].count[0],
+               CANAL[0].count[1],
+               CANAL[1].count[0],
+               CANAL[1].count[1],
+               CANAL[2].count[0],
+               CANAL[2].count[1],
+               CANAL[3].count[0],
+               CANAL[3].count[1]);
+
+        printf(">delta (%d,%d) (%d,%d) (%d,%d) (%d,%d)\n",
+               (int)CANAL[0].delta[0],
+               (int)CANAL[0].delta[1],
+               (int)CANAL[1].delta[0],
+               (int)CANAL[1].delta[1],
+               (int)CANAL[2].delta[0],
+               (int)CANAL[2].delta[1],
+               (int)CANAL[3].delta[0],
+               (int)CANAL[3].delta[1]);
+
+        printf(">delta-media (%d,%d) (%d,%d) (%d,%d) (%d,%d)\n",
+               (int)(CANAL[0].delta[0] - CANAL[0].ui_mean[0]),
+               (int)(CANAL[0].delta[1] - CANAL[0].ui_mean[1]),
+               (int)(CANAL[1].delta[0] - CANAL[1].ui_mean[0]),
+               (int)(CANAL[1].delta[1] - CANAL[1].ui_mean[1]),
+               (int)(CANAL[2].delta[0] - CANAL[2].ui_mean[0]),
+               (int)(CANAL[2].delta[1] - CANAL[2].ui_mean[1]),
+               (int)(CANAL[3].delta[0] - CANAL[3].ui_mean[0]),
+               (int)(CANAL[3].delta[1] - CANAL[3].ui_mean[1]));
+
+        printf(">MAX (%d/%d) (%d/%d) (%d/%d) (%d/%d) \n",
+               CANAL[0].contador_disparos_max[0],
+               CANAL[0].contador_disparos_max[1],
+               CANAL[1].contador_disparos_max[0],
+               CANAL[1].contador_disparos_max[1],
+               CANAL[2].contador_disparos_max[0],
+               CANAL[2].contador_disparos_max[1],
+               CANAL[3].contador_disparos_max[0],
+               CANAL[3].contador_disparos_max[1]);
+
+        printf(">MIN (%d/%d) (%d/%d) (%d/%d) (%d/%d) \n",
+               CANAL[0].contador_disparos_min[0],
+               CANAL[0].contador_disparos_min[1],
+               CANAL[1].contador_disparos_min[0],
+               CANAL[1].contador_disparos_min[1],
+               CANAL[2].contador_disparos_min[0],
+               CANAL[2].contador_disparos_min[1],
+               CANAL[3].contador_disparos_min[0],
+               CANAL[3].contador_disparos_min[1]);
+
+        printf("-----------------------------------------------------------------\n");
+      }
+      else
+      {
+
+        printf("Calibrando...\n");
+
+        // printf("Canal %d Edge %d Calibrado: Nueva media = %lu\n", dato->code, edge, dato->ui_mean[edge]);
+      }
     }
+
     /*
         estado = !estado;
         //   gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
@@ -239,6 +316,7 @@ extern "C" void app_main(void)
         printf("%d (%ld).\n", contador, (tactual - tanterior) / 1000);
         vTaskDelay(500 / portTICK_PERIOD_MS);*/
   }
+  vTaskDelay(10);
   //------------------------------------------------------------------------------------------
 }
 
@@ -257,7 +335,7 @@ volatile bool flag_evento = false;
 uint32_t tinicial;
 int edge;
 uint32_t value;
-int32_t delta;
+// int32_t delta;
 int CH;
 
 //------------------------------------------------------------------------------------------
@@ -325,54 +403,83 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
 
   dato->dir_flanco_anterior = dato->dir_flanco_actual;
 
-  delta = value - dato->t_anterior; //
+  dato->delta[edge] = value - dato->t_anterior; //
   dato->t_anterior = value;
 
   dato->count[edge]++; // son dos contadores independientes para cada flanco
 
   // Almacena los valores maximos y minimos del periodo
-  if (delta > dato->max[edge])
+  if (dato->delta[edge] > dato->max[edge])
   {
-    dato->max[edge] = delta;
+    dato->max[edge] = dato->delta[edge];
   }
-  if (delta < dato->min[edge])
+  if (dato->delta[edge] < dato->min[edge])
   {
-    dato->min[edge] = delta;
+    dato->min[edge] = dato->delta[edge];
   }
 
-  // ui_mean es un promedio entero para comparar en la isr
-
-  if (delta >= (dato->ui_mean[edge] + dato->delta_max[edge])) // si DELTA > (MEDIA + UMBRAL) -> trigger MAXIMO++
+  if (dato->f_calibra[edge] == true)
   {
-    dato->contador_disparos_max[edge]++;
+    dato->contador_calibra[edge]++;
 
-    if (dato->contador_disparos_max[edge] >= dato->n_max_disparos[edge]) // si trigger MAXIMO alcanza el numero de disparos maximos
+    if (dato->contador_calibra[edge] >= dato->ciclos_de_calibracion)
     {
-      dato->flag_evento[edge] = true;
+      dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->contador_calibra[edge];
+      dato->ui_mean_sum[edge] = 0;
+      dato->contador_calibra[edge] = 0;
+      dato->f_calibra[edge] = false;
+      // printf("Canal %d Edge %d Calibrado: Nueva media = %lu\n", dato->code, edge, dato->ui_mean[edge]);
+      fcalibra = false;
+    }
+
+    dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + dato->delta[edge];
+  }
+  else
+  {
+
+    if (dato->delta[edge] >= (dato->ui_mean[edge] + dato->delta_max[edge])) // si DELTA > (MEDIA + UMBRAL) -> trigger MAXIMO++
+    {
+      dato->contador_disparos_max[edge]++;
+
+      if (dato->contador_disparos_max[edge] >= dato->n_max_disparos[edge]) // si trigger MAXIMO alcanza el numero de disparos maximos
+      {
+        dato->flag_evento_max[edge] = true;
+        dato->contador_disparos_max[edge] = dato->n_max_disparos[edge]; // para que no siga incrementando
+      }
+    }
+    else if (dato->delta[edge] <= (dato->ui_mean[edge] - dato->delta_max[edge])) // si DELTA < (MEDIA - UMBRAL) -> trigger MINIMO++
+    {
+      dato->contador_disparos_min[edge]++;
+
+      if (dato->contador_disparos_min[edge] >= dato->n_max_disparos[edge]) // si trigger MINIMO alcanza el numero de disparos maximos
+      {
+        dato->flag_evento_min[edge] = true;
+        dato->contador_disparos_min[edge] = dato->n_max_disparos[edge]; // para que no siga incrementando
+      }
+    }
+    else // si no se supera ningun límite se implementa una estrategia tipo anti-reset_wind-up
+    {
+      if (dato->contador_disparos_min[edge] > 0)
+      {
+        dato->contador_disparos_min[edge]--;
+        if (dato->contador_disparos_min[edge] < 0)
+        {
+          dato->contador_disparos_min[edge] = 0;
+          dato->flag_evento_min[edge] = false;
+        }
+      }
+      if (dato->contador_disparos_max[edge] > 0)
+      {
+        dato->contador_disparos_max[edge]--;
+
+        if (dato->contador_disparos_max[edge] < 0)
+        {
+          dato->contador_disparos_max[edge] = 0;
+          dato->flag_evento_max[edge] = false;
+        }
+      }
     }
   }
-  else if (delta <= (dato->ui_mean[edge] - dato->delta_max[edge])) // si DELTA < (MEDIA - UMBRAL) -> trigger MINIMO++
-  {
-
-    dato->contador_disparos_min[edge]++;
-
-    if (dato->contador_disparos_min[edge] >= dato->n_max_disparos[edge]) // si trigger MINIMO alcanza el numero de disparos maximos
-    {
-      dato->flag_evento[edge] = true;
-    }
-  }
-  else // si no se supera ningun
-  {
-    dato->contador_disparos_min[edge] = 0;
-    dato->contador_disparos_max[edge] = 0;
-  }
-
-  if (f_calibra_media == true)
-  {
-
-    dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + delta;
-  }
-
   cont++;
 
   if (cont == DECIMACION) // cada cierto numero de muestras envio un resumen
@@ -465,7 +572,7 @@ void config_GPIO(void)
   {
     io_conf.pin_bit_mask = 1ULL << CANAL[i].gpio_num;
     ESP_ERROR_CHECK(gpio_config(&io_conf));
-    ESP_ERROR_CHECK(gpio_set_level((gpio_num_t)CANAL[i].gpio_num, 0));
+    ESP_ERROR_CHECK(gpio_set_level(CANAL[i].gpio_num, 0));
   }
 
   io_conf.pin_bit_mask = 1ULL << PIN_DE_SALIDA_SENAL;
@@ -670,7 +777,8 @@ void config_mcpwm(void)
   mcpwm_new_generator(oper, &gen_config, &gen);
 
   mcpwm_comparator_set_compare_value(h_comparator, (timer_config.period_ticks * duty) / 100);
-  // Configurar acciones
+  // mcpwm_comparator_set_compare_value(h_comparator, 500000); // 50% duty
+  //  Configurar acciones
   mcpwm_generator_set_action_on_timer_event(gen,
                                             MCPWM_GEN_TIMER_EVENT_ACTION(MCPWM_TIMER_DIRECTION_UP,
                                                                          MCPWM_TIMER_EVENT_EMPTY,
@@ -750,7 +858,7 @@ void muestra_configuracion_nvs(mi_config_t *config)
              config->CANAL[i].ID,
              config->CANAL[i].code,
              config->CANAL[i].enable,
-             config->CANAL[i].ui_mean);
+             (int)config->CANAL[i].ui_mean);
   }
   ESP_LOGI(TAG, "MODO_INICIAL=%d", config->modo_inicial);
   ESP_LOGI(TAG, "FREC_EMULA=%d", config->frec_emula);
@@ -771,6 +879,9 @@ void inicia_variables_globales(mi_config_t *config)
     CANAL[i].enable = config->CANAL[i].enable;
     CANAL[i].ui_mean[0] = config->CANAL[i].ui_mean;
     CANAL[i].ui_mean[1] = config->CANAL[i].ui_mean;
+    CANAL[i].prescaler = config->CANAL[i].prescaler;
+    CANAL[i].delta_max[0] = config->CANAL[i].delta_max; // 10% de tolerancia
+    CANAL[i].delta_max[1] = config->CANAL[i].delta_max;
   }
   return;
 }

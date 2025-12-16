@@ -5,8 +5,8 @@
 #include <ctype.h>
 #include "driver/uart.h"
 
-char *separa_argumentos = "--";
-char *separa_comandos = ",";
+const char *separa_argumentos = "--";
+const char *separa_comandos = ",";
 
 extern const char *TAG;
 extern data CANAL[];
@@ -18,6 +18,7 @@ extern mcpwm_timer_config_t timer_config;
 extern int32_t duty;
 extern uint32_t frec_reloj_filtro;
 extern const int PWM_RESOLUTION_HZ;
+extern bool fcalibra;
 
 void uart_exeption(uart_event_t event, uint8_t *dtmp);
 
@@ -47,19 +48,19 @@ bool fun11(int n, char *str, ...);
 bool fun12(int n, char *str, ...);
 bool fun13(int n, char *str, ...);
 
-const char *COD[NCODIGOS] = {"INICIA " /*1*/,
-                             "PARA " /*2*/,
-                             "RESTART " /*3*/,
-                             "RESET " /*4*/,
-                             "CALIBRA " /*5*/,
-                             "SAVE " /*6*/,
-                             "CONFIG " /*7*/,
-                             "SIMULA " /*8*/,
-                             "LAUNCH " /*9*/,
-                             "STATUS " /*10*/,
-                             "CANAL " /*11*/,
-                             "DUTY " /*12*/,
-                             "FREC " /*13*/};
+const char *COD[NCODIGOS] = {"INICIA" /*1*/,
+                             "PARA" /*2*/,
+                             "RESTART" /*3*/,
+                             "RESET" /*4*/,
+                             "CALIBRA" /*5*/,
+                             "SAVE" /*6*/,
+                             "CONFIG" /*7*/,
+                             "SIMULA" /*8*/,
+                             "LAUNCH" /*9*/,
+                             "STATUS" /*10*/,
+                             "CANAL" /*11*/,
+                             "DUTY" /*12*/,
+                             "FREC" /*13*/};
 
 func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11, fun12, fun13};
 
@@ -146,6 +147,19 @@ bool fun4(int n, char *str, ...)
 bool fun5(int n, char *str, ...)
 {
     printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    fcalibra = true;
+
+    for (int i = 0; i < 4; i++)
+    {
+        CANAL[i].f_calibra[0] = true;
+        CANAL[i].f_calibra[1] = true;
+        CANAL[i].contador_calibra[0] = 0;
+        CANAL[i].contador_calibra[1] = 0;
+        CANAL[i].ui_mean_sum[0] = 0;
+        CANAL[i].ui_mean_sum[1] = 0;
+    }
+
     return true;
 }
 
@@ -356,7 +370,7 @@ bool fun13(int n, char *str, ...)
 
     if (dato_valido)
     {
-        printf("frecuencia de reloj del filtro actual: %ld kHz\n", frec_reloj_filtro/1000);
+        printf("frecuencia de reloj del filtro actual: %ld kHz\n", frec_reloj_filtro / 1000);
     }
     else
     {
