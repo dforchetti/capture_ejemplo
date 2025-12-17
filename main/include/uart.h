@@ -32,7 +32,7 @@ static QueueHandle_t uart0_queue;
 
 typedef bool (*func_varargs_t)(int n, char *str, ...);
 
-#define NCODIGOS 13
+#define NCODIGOS 14
 
 bool fun1(int n, char *str, ...);
 bool fun2(int n, char *str, ...);
@@ -47,6 +47,7 @@ bool fun10(int n, char *str, ...);
 bool fun11(int n, char *str, ...);
 bool fun12(int n, char *str, ...);
 bool fun13(int n, char *str, ...);
+bool fun14(int n, char *str, ...);
 
 const char *COD[NCODIGOS] = {"INICIA" /*1*/,
                              "PARA" /*2*/,
@@ -60,9 +61,10 @@ const char *COD[NCODIGOS] = {"INICIA" /*1*/,
                              "STATUS" /*10*/,
                              "CANAL" /*11*/,
                              "DUTY" /*12*/,
-                             "FREC" /*13*/};
+                             "FREC" /*13*/,
+                             "SENSIBILIDAD" /*14*/};
 
-func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11, fun12, fun13};
+func_varargs_t funciones[NCODIGOS] = {fun1, fun2, fun3, fun4, fun5, fun6, fun7, fun8, fun9, fun10, fun11, fun12, fun13, fun14};
 
 // Definir tipo para puntero a función con argumentos variables
 
@@ -375,6 +377,249 @@ bool fun13(int n, char *str, ...)
     else
     {
         printf("frecuencia de reloj del filtro fuera de rango (50-300) kHz \n");
+    }
+
+    return true;
+}
+
+//"SENSIBILIDAD"
+//--------------------------------------------------------------------------------
+bool fun14(int n, char *str, ...)
+{
+    printf("Codigo de activacion recibido: %s\n", COD[n]);
+
+    char *token;
+    bool dato_valido = false;
+    int canal = 0;
+    int valor = 0;
+    bool cambiar_up = false;
+    bool cambiar_down = false;
+
+    // Parsear el string de entrada
+    token = strtok(str, separa_argumentos);  // descarta el primer espacio si lo hay
+    token = strtok(NULL, separa_argumentos); // canal o comando directo
+
+    if (token != NULL)
+    {
+        // Verificar si es un canal específico con doble guión (--1, --2, --3, --4)
+        bool es_canal_especifico = false;
+        if (token[0] == '-' && token[1] == '-' && strlen(token) == 3)
+        {
+            canal = atoi(&token[2]); // extraer número después de los guiones
+            if (canal >= 1 && canal <= 4)
+            {
+                es_canal_especifico = true;
+            }
+        }
+
+        if (es_canal_especifico)
+        {
+            // Comando para canal específico
+            int i = canal - 1; // índice del array (0-3)
+
+            token = strtok(NULL, separa_argumentos); // siguiente token
+            if (token != NULL)
+            {
+                // Verificar si es un flag U o D (siempre en mayúsculas)
+                if (strcmp(token, "U") == 0)
+                {
+                    cambiar_up = true;
+                    token = strtok(NULL, separa_argumentos); // obtener el valor
+                    if (token != NULL)
+                    {
+                        valor = atoi(token);
+                        if (valor > 0)
+                        {
+                            CANAL[i].delta_max[0] = valor; // UP
+                            printf("Canal %d: Delta UP = %d\n", canal, valor);
+                            dato_valido = true;
+                        }
+                        else
+                        {
+                            printf("Error: El valor debe ser positivo\n");
+                        }
+                    }
+                    else
+                    {
+                        printf("Error: Falta especificar el valor para U\n");
+                    }
+                }
+                else if (strcmp(token, "D") == 0)
+                {
+                    cambiar_down = true;
+                    token = strtok(NULL, separa_argumentos); // obtener el valor
+                    if (token != NULL)
+                    {
+                        valor = atoi(token);
+                        if (valor > 0)
+                        {
+                            CANAL[i].delta_max[1] = valor; // DOWN
+                            printf("Canal %d: Delta DOWN = %d\n", canal, valor);
+                            dato_valido = true;
+                        }
+                        else
+                        {
+                            printf("Error: El valor debe ser positivo\n");
+                        }
+                    }
+                    else
+                    {
+                        printf("Error: Falta especificar el valor para D\n");
+                    }
+                }
+                else
+                {
+                    // Formato original: valor UP y opcionalmente DOWN
+                    int delta_up = atoi(token);
+                    int delta_down = delta_up; // por defecto mismo valor
+
+                    token = strtok(NULL, separa_argumentos); // valor delta DOWN (opcional)
+                    if (token != NULL)
+                    {
+                        delta_down = atoi(token);
+                    }
+
+                    // Validar que los valores sean positivos
+                    if (delta_up > 0 && delta_down > 0)
+                    {
+                        // Actualizar los valores delta del canal
+                        CANAL[i].delta_max[0] = delta_up;   // UP
+                        CANAL[i].delta_max[1] = delta_down; // DOWN
+
+                        printf("Canal %d: Delta UP = %d, Delta DOWN = %d\n", canal, delta_up, delta_down);
+                        dato_valido = true;
+                    }
+                    else
+                    {
+                        printf("Error: Los valores delta deben ser positivos\n");
+                    }
+                }
+            }
+            else
+            {
+                printf("Error: Falta especificar parámetros\n");
+            }
+        }
+        else
+        {
+            // Comando para TODOS los canales (no se especificó canal válido)
+            if (strcmp(token, "U") == 0)
+            {
+                cambiar_up = true;
+                token = strtok(NULL, separa_argumentos); // obtener el valor
+                if (token != NULL)
+                {
+                    valor = atoi(token);
+                    if (valor > 0)
+                    {
+                        for (int i = 0; i < 4; i++)
+                        {
+                            CANAL[i].delta_max[0] = valor; // UP
+                        }
+                        printf("Todos los canales: Delta UP = %d\n", valor);
+                        dato_valido = true;
+                    }
+                    else
+                    {
+                        printf("Error: El valor debe ser positivo\n");
+                    }
+                }
+                else
+                {
+                    printf("Error: Falta especificar el valor para U\n");
+                }
+            }
+            else if (strcmp(token, "D") == 0)
+            {
+                cambiar_down = true;
+                token = strtok(NULL, separa_argumentos); // obtener el valor
+                if (token != NULL)
+                {
+                    valor = atoi(token);
+                    if (valor > 0)
+                    {
+                        for (int i = 0; i < 4; i++)
+                        {
+                            CANAL[i].delta_max[1] = valor; // DOWN
+                        }
+                        printf("Todos los canales: Delta DOWN = %d\n", valor);
+                        dato_valido = true;
+                    }
+                    else
+                    {
+                        printf("Error: El valor debe ser positivo\n");
+                    }
+                }
+                else
+                {
+                    printf("Error: Falta especificar el valor para D\n");
+                }
+            }
+            else
+            {
+                // Formato numérico: aplicar a todos los canales
+                int delta_up = atoi(token);
+                int delta_down = delta_up; // por defecto mismo valor
+
+                token = strtok(NULL, separa_argumentos); // valor delta DOWN (opcional)
+                if (token != NULL)
+                {
+                    delta_down = atoi(token);
+                }
+
+                // Validar que los valores sean positivos
+                if (delta_up > 0 && delta_down > 0)
+                {
+                    // Actualizar los valores delta de TODOS los canales
+                    for (int i = 0; i < 4; i++)
+                    {
+                        CANAL[i].delta_max[0] = delta_up;   // UP
+                        CANAL[i].delta_max[1] = delta_down; // DOWN
+                    }
+                    printf("Todos los canales: Delta UP = %d, Delta DOWN = %d\n", delta_up, delta_down);
+                    dato_valido = true;
+                }
+                else
+                {
+                    printf("Error: Los valores delta deben ser positivos\n");
+                }
+            }
+        }
+    }
+    else
+    {
+        // Sin parámetros, mostrar estado actual de todos los canales
+        printf("\n----Sensibilidad de canales----\n");
+        for (int i = 0; i < 4; i++)
+        {
+            printf("Canal %d: Delta UP = %u, Delta DOWN = %u\n",
+                   i + 1,
+                   (unsigned int)CANAL[i].delta_max[0],
+                   (unsigned int)CANAL[i].delta_max[1]);
+        }
+        printf("------------------------------\n");
+        dato_valido = true;
+    }
+
+    if (!dato_valido)
+    {
+        printf("Uso:\n");
+        printf("  SENSIBILIDAD--1--U--[valor]          (cambiar solo UP del canal 1)\n");
+        printf("  SENSIBILIDAD--2--D--[valor]          (cambiar solo DOWN del canal 2)\n");
+        printf("  SENSIBILIDAD--3--[up]--[down]        (cambiar ambos del canal 3)\n");
+        printf("  SENSIBILIDAD--4--[valor]             (cambiar ambos del canal 4 al mismo valor)\n");
+        printf("  SENSIBILIDAD--U--[valor]             (cambiar solo UP de TODOS los canales)\n");
+        printf("  SENSIBILIDAD--D--[valor]             (cambiar solo DOWN de TODOS los canales)\n");
+        printf("  SENSIBILIDAD--[up]--[down]           (cambiar ambos de TODOS los canales)\n");
+        printf("  SENSIBILIDAD--[valor]                (cambiar ambos de TODOS los canales al mismo valor)\n");
+        printf("Ejemplos:\n");
+        printf("  SENSIBILIDAD--1--U--100     (solo UP del canal 1 = 100)\n");
+        printf("  SENSIBILIDAD--2--D--150     (solo DOWN del canal 2 = 150)\n");
+        printf("  SENSIBILIDAD--3--100--200   (canal 3: UP=100, DOWN=200)\n");
+        printf("  SENSIBILIDAD--U--250        (UP de todos los canales = 250)\n");
+        printf("  SENSIBILIDAD--D--300        (DOWN de todos los canales = 300)\n");
+        printf("  SENSIBILIDAD--100--150      (todos: UP=100, DOWN=150)\n");
+        printf("  SENSIBILIDAD--200           (todos: UP=200, DOWN=200)\n");
     }
 
     return true;

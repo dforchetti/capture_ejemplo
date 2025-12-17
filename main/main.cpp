@@ -162,8 +162,9 @@ void task1(void *parameter)
 
     tactual = esp_timer_get_time();
 
-    if (tactual - tanterior >= (1000000) * duty / 100)
+    if (tactual - tanterior >= (1000000) * (duty * estado + (100 - duty) * (!estado)) / 100)
     {
+
       tanterior = tactual;
       estado = !estado;
       gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
