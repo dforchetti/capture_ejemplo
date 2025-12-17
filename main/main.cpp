@@ -94,6 +94,7 @@ const int PWM_RESOLUTION_HZ = 80000000; // 80 MHz
 
 uint32_t frec_reloj_filtro = 150000; // frecuencia de reloj del filtro en Hz
 int32_t duty = 50;                   // duty cycle en %
+bool fcalibra = false;
 
 modo estado_actual = ENCENDIDO;
 
@@ -248,58 +249,71 @@ extern "C" void app_main(void)
       {
 
         //"\033[0;" COLOR "m"
-        printf(">(%d/%d) (%d/%d) (%d/%d) (%d/%d)\n",
-               CANAL[0].count[0],
-               CANAL[0].count[1],
-               CANAL[1].count[0],
-               CANAL[1].count[1],
-               CANAL[2].count[0],
-               CANAL[2].count[1],
-               CANAL[3].count[0],
-               CANAL[3].count[1]);
+        int i = 0;
 
-        printf(">delta (%d,%d) (%d,%d) (%d,%d) (%d,%d)\n",
-               (int)CANAL[0].delta[0],
-               (int)CANAL[0].delta[1],
-               (int)CANAL[1].delta[0],
-               (int)CANAL[1].delta[1],
-               (int)CANAL[2].delta[0],
-               (int)CANAL[2].delta[1],
-               (int)CANAL[3].delta[0],
-               (int)CANAL[3].delta[1]);
+        printf(">");
+        for (i = 0; i < N_CANALES; i++)
+        {
+          if (CANAL[i].enable)
+          {
+            printf(" (%d/%d)", CANAL[i].count[0], CANAL[i].count[1]);
+          }
+        }
+        printf("\n>");
 
-        printf(">delta-media (%d,%d) (%d,%d) (%d,%d) (%d,%d)\n",
-               (int)(CANAL[0].delta[0] - CANAL[0].ui_mean[0]),
-               (int)(CANAL[0].delta[1] - CANAL[0].ui_mean[1]),
-               (int)(CANAL[1].delta[0] - CANAL[1].ui_mean[0]),
-               (int)(CANAL[1].delta[1] - CANAL[1].ui_mean[1]),
-               (int)(CANAL[2].delta[0] - CANAL[2].ui_mean[0]),
-               (int)(CANAL[2].delta[1] - CANAL[2].ui_mean[1]),
-               (int)(CANAL[3].delta[0] - CANAL[3].ui_mean[0]),
-               (int)(CANAL[3].delta[1] - CANAL[3].ui_mean[1]));
+        printf(">     ");
+        for (i = 0; i < N_CANALES; i++)
+        {
+          if (CANAL[i].enable)
+          {
+            printf(" (%ld/%ld)", CANAL[i].delta[0], CANAL[i].delta[1]);
+          }
+        }
+        printf("\n>");
 
-        printf(">MAX (%d/%d) (%d/%d) (%d/%d) (%d/%d) \n",
-               CANAL[0].contador_disparos_max[0],
-               CANAL[0].contador_disparos_max[1],
-               CANAL[1].contador_disparos_max[0],
-               CANAL[1].contador_disparos_max[1],
-               CANAL[2].contador_disparos_max[0],
-               CANAL[2].contador_disparos_max[1],
-               CANAL[3].contador_disparos_max[0],
-               CANAL[3].contador_disparos_max[1]);
+        printf("> mean ");
+        for (i = 0; i < N_CANALES; i++)
+        {
+          if (CANAL[i].enable)
+          {
+            printf(" (%ld/%ld)", CANAL[i].ui_mean[0], CANAL[i].ui_mean[1]);
+          }
+        }
+        printf("\n>");
 
-        printf(">MIN (%d/%d) (%d/%d) (%d/%d) (%d/%d) \n",
-               CANAL[0].contador_disparos_min[0],
-               CANAL[0].contador_disparos_min[1],
-               CANAL[1].contador_disparos_min[0],
-               CANAL[1].contador_disparos_min[1],
-               CANAL[2].contador_disparos_min[0],
-               CANAL[2].contador_disparos_min[1],
-               CANAL[3].contador_disparos_min[0],
-               CANAL[3].contador_disparos_min[1]);
+        printf("> delta _medida");
+        for (i = 0; i < N_CANALES; i++)
+        {
+          if (CANAL[i].enable)
+          {
+            printf(" (%ld/%ld)", (long)(CANAL[i].delta[0] - CANAL[i].ui_mean[0]), (long)(CANAL[i].delta[1] - CANAL[i].ui_mean[1]));
+          }
+        }
+        printf("\n>");
+
+        printf("> MAX");
+        for (i = 0; i < N_CANALES; i++)
+        {
+          if (CANAL[i].enable)
+          {
+            printf(" (%d/%d)", CANAL[i].contador_disparos_max[0], CANAL[i].contador_disparos_max[1]);
+          }
+        }
+        printf("\n>");
+
+        printf("> MIN");
+        for (i = 0; i < N_CANALES; i++)
+        {
+          if (CANAL[i].enable)
+          {
+            printf(" (%d/%d)", CANAL[i].contador_disparos_min[0], CANAL[i].contador_disparos_min[1]);
+          }
+        }
+        printf("\n>");
 
         printf("-----------------------------------------------------------------\n");
       }
+
       else
       {
 
@@ -421,18 +435,18 @@ static bool capture_callback(mcpwm_cap_channel_handle_t cap_chan,
   if (dato->f_calibra[edge] == true)
   {
     dato->contador_calibra[edge]++;
+    // dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + 40000000; // dato->delta[edge];
+    dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + dato->delta[edge];
 
     if (dato->contador_calibra[edge] >= dato->ciclos_de_calibracion)
     {
-      dato->ui_mean[edge] = dato->ui_mean_sum[edge] / dato->contador_calibra[edge];
+      dato->ui_mean[edge] = (uint32_t)(dato->ui_mean_sum[edge] / dato->contador_calibra[edge]);
       dato->ui_mean_sum[edge] = 0;
       dato->contador_calibra[edge] = 0;
       dato->f_calibra[edge] = false;
       // printf("Canal %d Edge %d Calibrado: Nueva media = %lu\n", dato->code, edge, dato->ui_mean[edge]);
       fcalibra = false;
     }
-
-    dato->ui_mean_sum[edge] = dato->ui_mean_sum[edge] + dato->delta[edge];
   }
   else
   {
