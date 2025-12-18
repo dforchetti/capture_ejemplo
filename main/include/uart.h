@@ -221,7 +221,6 @@ bool fun10(int n, char *str, ...)
 
 // CANAL
 //--------------------------------------------------------------------------------
-
 bool fun11(int n, char *str, ...)
 {
 
@@ -298,15 +297,45 @@ bool fun11(int n, char *str, ...)
     return true;
 }
 
+//"DUTY"
+//--------------------------------------------------------------------------------
 bool fun12(int n, char *str, ...)
 {
     bool dato_valido = false;
+    int incremento = 10; // incremento por defecto
+    bool es_valor_directo = false;
 
     printf("%s\n", str);
 
-    if (strstr(str, "+") != NULL)
+    // Buscar si hay un + o - en la cadena
+    char *pos_plus = strstr(str, "+");
+    char *pos_minus = strstr(str, "-");
+
+    if (pos_plus != NULL)
     {
-        duty = duty + 10;
+        // Verificar si hay un número después del +
+        char *numero_str = pos_plus + 1;
+
+        // Saltar espacios en blanco si los hay
+        while (*numero_str == ' ')
+            numero_str++;
+
+        if (*numero_str != '\0' && isdigit(*numero_str))
+        {
+            int valor = atoi(numero_str);
+            if (valor >= 0 && valor <= 100)
+            {
+                incremento = valor;
+            }
+            else
+            {
+                // Valor fuera de rango, no hacer nada
+                printf("Incremento fuera de rango (0-100), no cambia duty\n");
+                return true;
+            }
+        }
+
+        duty = duty + incremento;
 
         if (duty >= 100)
         {
@@ -315,9 +344,31 @@ bool fun12(int n, char *str, ...)
 
         dato_valido = true;
     }
-    else if (strstr(str, "-") != NULL)
+    else if (pos_minus != NULL)
     {
-        duty = duty - 10;
+        // Verificar si hay un número después del -
+        char *numero_str = pos_minus + 1;
+
+        // Saltar espacios en blanco si los hay
+        while (*numero_str == ' ')
+            numero_str++;
+
+        if (*numero_str != '\0' && isdigit(*numero_str))
+        {
+            int valor = atoi(numero_str);
+            if (valor >= 0 && valor <= 100)
+            {
+                incremento = valor;
+            }
+            else
+            {
+                // Valor fuera de rango, no hacer nada
+                printf("Decremento fuera de rango (0-100), no cambia duty\n");
+                return true;
+            }
+        }
+
+        duty = duty - incremento;
 
         if (duty <= 0)
         {
@@ -326,22 +377,62 @@ bool fun12(int n, char *str, ...)
 
         dato_valido = true;
     }
+    else
+    {
+        // No hay + ni -, verificar si es un valor numérico directo
+        char *str_limpio = str;
+
+        // Saltar espacios en blanco al inicio
+        while (*str_limpio == ' ')
+            str_limpio++;
+
+        // Verificar si toda la cadena (después de espacios) son dígitos
+        if (*str_limpio != '\0' && isdigit(*str_limpio))
+        {
+            bool es_numero_valido = true;
+            char *temp = str_limpio;
+
+            // Verificar que todos los caracteres sean dígitos
+            while (*temp != '\0' && *temp != ' ')
+            {
+                if (!isdigit(*temp))
+                {
+                    es_numero_valido = false;
+                    break;
+                }
+                temp++;
+            }
+
+            if (es_numero_valido)
+            {
+                int valor_directo = atoi(str_limpio);
+                if (valor_directo >= 0 && valor_directo <= 100)
+                {
+                    duty = valor_directo;
+                    dato_valido = true;
+                    es_valor_directo = true;
+                }
+                else
+                {
+                    printf("Valor directo fuera de rango (0-100), no cambia duty\n");
+                    return true;
+                }
+            }
+        }
+    }
 
     if (dato_valido)
     {
-
-        if (duty == 100)
-        {
-            duty = 100;
-        }
-        else if (duty == 0)
-        {
-            duty = 0;
-        }
-
         mcpwm_comparator_set_compare_value(h_comparator, timer_config.period_ticks * duty / 100);
 
-        printf("duty actual: %ld %%\n", duty);
+        if (es_valor_directo)
+        {
+            printf("duty actual: %ld %% (valor establecido directamente)\n", duty);
+        }
+        else
+        {
+            printf("duty actual: %ld %% (cambio: %s%d)\n", duty, (pos_plus != NULL) ? "+" : "-", incremento);
+        }
     }
     else
     {
@@ -351,6 +442,8 @@ bool fun12(int n, char *str, ...)
     return true;
 }
 
+//    "FREC"
+//--------------------------------------------------------------------------------
 bool fun13(int n, char *str, ...)
 {
     bool dato_valido = false;
