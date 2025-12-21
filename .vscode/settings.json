@@ -8,8 +8,17 @@
   ],
   "idf.toolsPathWin": "C:\\Espressif",
   "idf.customExtraVars": {
-    "IDF_TARGET": "esp32s3"
+    "OPENOCD_SCRIPTS": "C:\\Users\\daniel\\.espressif\\tools\\openocd-esp32\\v0.12.0-esp32-20240318/openocd-esp32/share/openocd/scripts",
+    "IDF_CCACHE_ENABLE": "1",
+    "ESP_ROM_ELF_DIR": "C:\\Users\\daniel\\.espressif\\tools\\esp-rom-elfs\\20240305/",
+    "IDF_TARGET": "esp32"
   },
-  "idf.portWin": "COM10",
-  "idf.flashType": "UART"
+  "idf.portWin": "COM4",
+  "idf.flashType": "UART",
+  "clangd.path": "C:\\Espressif\\tools\\esp-clang\\16.0.1-fe4f10a809\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=C:\\Espressif\\tools\\xtensa-esp-elf\\esp-13.2.0_20240530\\xtensa-esp-elf\\bin\\xtensa-esp32-elf-gcc.exe",
+    "--compile-commands-dir=c:\\Users\\daniel\\Documents\\MEGA\\DriverDeBobina\\build"
+  ]
 }

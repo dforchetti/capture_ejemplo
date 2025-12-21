@@ -43,6 +43,8 @@ typedef struct
 {
   gpio_num_t gpio_num;
   gpio_num_t dpin;
+  gpio_num_t en_pin;
+  gpio_num_t OC_pin;
   int cap_timer;
   int ID;
   int code;
@@ -76,6 +78,33 @@ struct CaptureEvent
 //------------------------------------------------------------------------------------------
 // variable globales
 //------------------------------------------------------------------------------------------
+#define EXPERIMENTAL true
+
+#if (EXPERIMENTAL)
+#define PIN_DE_SALIDA_SENAL GPIO_NUM_22
+#define PIN_DE_DEBUG GPIO_NUM_19
+
+#define DEBUG_PIN_1 GPIO_NUM_18
+#define DEBUG_PIN_2 GPIO_NUM_5
+#define DEBUG_PIN_3 GPIO_NUM_17
+#define DEBUG_PIN_4 GPIO_NUM_27
+
+#define IN_PIN_1 GPIO_NUM_21
+#define IN_PIN_2 GPIO_NUM_19
+#define IN_PIN_3 GPIO_NUM_21
+#define IN_PIN_4 GPIO_NUM_26
+
+#define EN_PIN_1 GPIO_NUM_23
+#define EN_PIN_2 GPIO_NUM_23
+#define EN_PIN_3 GPIO_NUM_23
+#define EN_PIN_4 GPIO_NUM_23
+
+#define OC_PIN_1 GPIO_NUM_21
+#define OC_PIN_2 GPIO_NUM_21
+#define OC_PIN_3 GPIO_NUM_21
+#define OC_PIN_4 GPIO_NUM_21
+
+#else
 
 #define PIN_DE_SALIDA_SENAL GPIO_NUM_1
 #define PIN_DE_DEBUG GPIO_NUM_3
@@ -84,6 +113,23 @@ struct CaptureEvent
 #define DEBUG_PIN_2 GPIO_NUM_11
 #define DEBUG_PIN_3 GPIO_NUM_12
 #define DEBUG_PIN_4 GPIO_NUM_13
+
+#define IN_PIN_1 GPIO_NUM_2
+#define IN_PIN_2 GPIO_NUM_2
+#define IN_PIN_3 GPIO_NUM_2
+#define IN_PIN_4 GPIO_NUM_2
+
+#define EN_PIN_1 GPIO_NUM_4
+#define EN_PIN_2 GPIO_NUM_4
+#define EN_PIN_3 GPIO_NUM_4
+#define EN_PIN_4 GPIO_NUM_4
+
+#define OC_PIN_1 GPIO_NUM_15
+#define OC_PIN_2 GPIO_NUM_15
+#define OC_PIN_3 GPIO_NUM_15
+#define OC_PIN_4 GPIO_NUM_15
+
+#endif
 
 #define N_CANALES 4
 #define CAPTURE_PRESCALER 1
@@ -114,10 +160,10 @@ volatile int cont_default = 0;
 
 mi_config_t config_default = {
     .CANAL = {
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
-        {.gpio_num = GPIO_NUM_2, .dpin = DEBUG_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000}},
+        {.gpio_num = IN_PIN_1, .dpin = DEBUG_PIN_1, .en_pin = EN_PIN_1, .OC_pin = OC_PIN_1, .cap_timer = 0, .ID = 0, .code = 111, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
+        {.gpio_num = IN_PIN_2, .dpin = DEBUG_PIN_2, .en_pin = EN_PIN_2, .OC_pin = OC_PIN_2, .cap_timer = 0, .ID = 1, .code = 222, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
+        {.gpio_num = IN_PIN_3, .dpin = DEBUG_PIN_3, .en_pin = EN_PIN_3, .OC_pin = OC_PIN_3, .cap_timer = 1, .ID = 2, .code = 333, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000},
+        {.gpio_num = IN_PIN_4, .dpin = DEBUG_PIN_4, .en_pin = EN_PIN_4, .OC_pin = OC_PIN_4, .cap_timer = 1, .ID = 3, .code = 444, .enable = 1, .prescaler = CAPTURE_PRESCALER, .ui_mean = 40000000, .delta_max = 100000}},
     .modo_inicial = ENCENDIDO,
     .frec_emula = 150000,
     .contador = 0};

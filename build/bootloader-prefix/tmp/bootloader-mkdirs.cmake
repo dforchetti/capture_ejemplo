@@ -5,18 +5,18 @@ cmake_minimum_required(VERSION 3.5)
 
 file(MAKE_DIRECTORY
   "C:/Espressif/frameworks/esp-idf-v5.3.1/components/bootloader/subproject"
-  "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader"
-  "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix"
-  "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/tmp"
-  "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp"
-  "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src"
-  "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp"
+  "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader"
+  "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix"
+  "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix/tmp"
+  "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix/src/bootloader-stamp"
+  "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix/src"
+  "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix/src/bootloader-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
+    file(MAKE_DIRECTORY "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix/src/bootloader-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "C:/Users/daniel/Documents/MEGA/capture_ejemplo/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "C:/Users/daniel/Documents/MEGA/DriverDeBobina/build/bootloader-prefix/src/bootloader-stamp${cfgdir}") # cfgdir has leading slash
 endif()
