@@ -213,7 +213,7 @@ void task1(void *parameter)
 
       tanterior = tactual;
       estado = !estado;
-      gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
+      // gpio_set_level(PIN_DE_SALIDA_SENAL, estado);
       // printf("TASK1...%d\n", estado);
     }
   }
@@ -259,7 +259,7 @@ extern "C" void app_main(void)
 
   // config PWM
   //------------------------------------------------------------------------------------------
-  // config_mcpwm();
+  config_mcpwm();
 
   // capture channels
   //------------------------------------------------------------------------------------------
@@ -644,21 +644,23 @@ void config_GPIO(void)
   ESP_ERROR_CHECK(gpio_config(&io_conf));
   ESP_ERROR_CHECK(gpio_set_level(PIN_DE_DEBUG, 0));
 
-  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_10;
-  ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_10, 0));
+  // habria que ver si puedo sacar todo este codigo repetido
 
-  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_11;
+  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_1;
   ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_11, 0));
+  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_1, 0));
 
-  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_12;
+  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_2;
   ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_12, 0));
+  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_2, 0));
 
-  io_conf.pin_bit_mask = 1ULL << GPIO_NUM_13;
+  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_3;
   ESP_ERROR_CHECK(gpio_config(&io_conf));
-  ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_13, 0));
+  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_3, 0));
+
+  io_conf.pin_bit_mask = 1ULL << DEBUG_PIN_4;
+  ESP_ERROR_CHECK(gpio_config(&io_conf));
+  ESP_ERROR_CHECK(gpio_set_level(DEBUG_PIN_4, 0));
 }
 //------------------------------------------------------------------------------------------
 
